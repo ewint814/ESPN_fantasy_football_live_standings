@@ -4,7 +4,7 @@ import time
 from espn_api.football import League
 from threading import Lock
 import os
-from dotenv import load_dotenv
+Dfrom dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from .env
 

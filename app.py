@@ -14,7 +14,7 @@ print("Loaded SWID:", os.getenv("SWID"))
 
 league = League(
     league_id=637021,
-    year=2025,
+    year=2024,
     espn_s2=os.getenv("ESPN_S2"),
     swid=os.getenv("SWID")
 )

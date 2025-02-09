@@ -8,6 +8,10 @@ from dotenv import load_dotenv
 
 load_dotenv()  # Load environment variables from .env
 
+# Debugging: Print loaded environment variables
+print("Loaded ESPN_S2:", os.getenv("ESPN_S2"))
+print("Loaded SWID:", os.getenv("SWID"))
+
 league = League(
     league_id=637021,
     year=2025,

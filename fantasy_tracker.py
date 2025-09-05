@@ -54,12 +54,14 @@ class FantasyTracker:
             
             self.league = League(
                 league_id=int(league_id),
-                year=2024,
+                year=2025,
                 espn_s2=espn_s2,
                 swid=swid
             )
             
             logger.info(f"✅ Connected to ESPN league {league_id}")
+            logger.info(f"🗓️  League year: {self.league.year}")
+            logger.info(f"📅 Current week will be: {self._get_current_week()}")
             
         except Exception as e:
             logger.error(f"❌ Failed to connect to ESPN: {e}")
@@ -110,6 +112,7 @@ class FantasyTracker:
             return []
         
         try:
+            logger.info(f"🔍 Fetching scores for week {self.current_week}")
             box_scores = self.league.box_scores(week=self.current_week)
             teams_data = []
             

@@ -128,6 +128,7 @@ class FantasyTracker:
                     # Analyze player statuses
                     currently_playing = []
                     yet_to_play = []
+                    finished_playing = []
                     total_starters = 0
                     
                     for player in lineup:
@@ -137,17 +138,30 @@ class FantasyTracker:
                             
                         total_starters += 1
                         player_name = getattr(player, 'name', 'Unknown')
+                        player_points = getattr(player, 'points', 0)
                         
-                        # Check if player is currently playing or yet to play
-                        if hasattr(player, 'game_played'):
-                            if player.game_played == 0:  # Game hasn't started
-                                yet_to_play.append(player_name)
-                            elif player.game_played == 1 and hasattr(player, 'points') and player.points > 0:
-                                currently_playing.append(player_name)
+                        # Enhanced player status detection
+                        game_played = getattr(player, 'game_played', None)
+                        
+                        if game_played == 0:  # Game hasn't started yet
+                            yet_to_play.append(player_name)
+                        elif game_played == 1:  # Game is in progress or finished
+                            if player_points > 0:
+                                # Player has scored points, likely playing or finished
+                                if hasattr(player, 'game_date') and hasattr(player, 'game_status'):
+                                    # Try to determine if game is still active
+                                    currently_playing.append(f"{player_name} ({player_points:.1f})")
+                                else:
+                                    currently_playing.append(f"{player_name} ({player_points:.1f})")
+                            else:
+                                # Game played but no points yet (could be currently playing)
+                                currently_playing.append(f"{player_name} (0.0)")
+                        elif game_played == 2:  # Game finished
+                            finished_playing.append(f"{player_name} ({player_points:.1f})")
                         else:
-                            # Fallback: if they have points, assume playing
-                            if hasattr(player, 'points') and player.points > 0:
-                                currently_playing.append(player_name)
+                            # Fallback logic based on points
+                            if player_points > 0:
+                                currently_playing.append(f"{player_name} ({player_points:.1f})")
                             else:
                                 yet_to_play.append(player_name)
                     
@@ -156,8 +170,10 @@ class FantasyTracker:
                         'live_score': float(score) if score else 0.0,
                         'currently_playing': currently_playing,
                         'yet_to_play': yet_to_play,
+                        'finished_playing': finished_playing,
                         'players_playing_count': len(currently_playing),
                         'players_remaining_count': len(yet_to_play),
+                        'players_finished_count': len(finished_playing),
                         'total_starters': total_starters
                     })
             
@@ -338,13 +354,19 @@ class FantasyTracker:
                 }
                 
                 .team-score {
-                    font-size: 2em;
-                    font-weight: bold;
+                    font-weight: 700;
+                    font-size: 1.8em;
                     color: #e74c3c;
+                    text-align: right;
                 }
                 
                 .top6 .team-score {
                     color: #27ae60;
+                }
+                
+                .finished {
+                    color: #95a5a6;
+                    font-style: italic;
                 }
                 
                 .top6-badge {
@@ -453,15 +475,6 @@ class FantasyTracker:
             </div>
             
             <div class="container">
-                <div class="legend">
-                    <h3>Scoring System</h3>
-                    <div class="legend-item">
-                        <span class="top6-indicator">🏆 TOP 6</span> = Extra Win
-                    </div>
-                    <div class="legend-item">
-                        Head-to-Head Win + Top 6 Bonus = 2 Wins Possible
-                    </div>
-                </div>
                 
                 {% if scores %}
                 <div class="scores-list">
@@ -503,7 +516,19 @@ class FantasyTracker:
                             </div>
                             {% endif %}
                             
-                            {% if not team.currently_playing and not team.yet_to_play %}
+                            {% if team.finished_playing %}
+                            <div class="player-section">
+                                <div class="player-label finished">
+                                    ✅ Finished Playing 
+                                    <span class="player-count">{{ team.players_finished_count }}</span>
+                                </div>
+                                <div class="player-list">
+                                    {{ team.finished_playing | join(', ') }}
+                                </div>
+                            </div>
+                            {% endif %}
+                            
+                            {% if not team.currently_playing and not team.yet_to_play and not team.finished_playing %}
                             <div class="player-section">
                                 <div class="player-label">✅ All players finished</div>
                             </div>

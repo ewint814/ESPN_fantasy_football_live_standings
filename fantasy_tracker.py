@@ -34,7 +34,7 @@ class FantasyTracker:
         self.league = None
         self.live_scores = []
         self.last_update = None
-        self.current_week = 15  # Will auto-detect later
+        self.current_week = self._get_current_week()
         
         # Initialize ESPN connection
         self._connect_to_espn()
@@ -64,6 +64,45 @@ class FantasyTracker:
         except Exception as e:
             logger.error(f"❌ Failed to connect to ESPN: {e}")
             self.league = None
+    
+    def _get_current_week(self):
+        """Auto-detect the current NFL week."""
+        try:
+            if self.league:
+                # Try to get current week from league settings
+                current_week = getattr(self.league, 'current_week', None)
+                if current_week:
+                    return current_week
+            
+            # For 2025 season, we're in the early weeks
+            now = datetime.now()
+            
+            # If it's 2025 and before March, we're in the new season
+            if now.year == 2025 and now.month <= 3:
+                return 1  # Early 2025 season
+            
+            # If it's September 2024 or later in 2024, calculate based on that season
+            if now.year == 2024:
+                if now.month >= 9:
+                    # Approximate first Thursday of September 2024
+                    first_thursday = 1 + (3 - datetime(2024, 9, 1).weekday()) % 7
+                    season_start = datetime(2024, 9, first_thursday)
+                    
+                    if now < season_start:
+                        return 1
+                    
+                    days_since_start = (now - season_start).days
+                    week = min(18, max(1, (days_since_start // 7) + 1))
+                    return week
+                else:
+                    return 1
+            
+            # Default for any other case
+            return 1
+            
+        except Exception as e:
+            logger.warning(f"Could not determine current week, using week 1: {str(e)}")
+            return 1
     
     def _get_live_scores(self):
         """Fetch current live scores and player info"""
@@ -246,10 +285,12 @@ class FantasyTracker:
                     font-weight: bold;
                 }
                 
-                .scores-grid {
-                    display: grid;
+                .scores-list {
+                    display: flex;
+                    flex-direction: column;
                     gap: 15px;
-                    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+                    max-width: 800px;
+                    margin: 0 auto;
                 }
                 
                 .team-card {
@@ -364,10 +405,6 @@ class FantasyTracker:
                 }
                 
                 @media (max-width: 768px) {
-                    .scores-grid {
-                        grid-template-columns: 1fr;
-                    }
-                    
                     .header h1 {
                         font-size: 2em;
                     }
@@ -379,6 +416,10 @@ class FantasyTracker:
                     
                     .team-name {
                         margin: 10px 0;
+                    }
+                    
+                    .scores-list {
+                        margin: 0 10px;
                     }
                 }
             </style>
@@ -420,7 +461,7 @@ class FantasyTracker:
                 </div>
                 
                 {% if scores %}
-                <div class="scores-grid">
+                <div class="scores-list">
                     {% for team in scores %}
                     <div class="team-card {{ 'top6' if team.is_top6 else '' }}">
                         <div class="team-header">

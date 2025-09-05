@@ -242,41 +242,46 @@ class FantasyTracker:
                 }
                 
                 body {
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+                    background: #f8fafc;
                     min-height: 100vh;
-                    color: #333;
+                    color: #1e293b;
+                    line-height: 1.5;
+                    padding: 0;
+                    margin: 0;
                 }
                 
                 .header {
-                    background: rgba(0,0,0,0.2);
-                    color: white;
-                    padding: 20px;
+                    background: white;
+                    border-bottom: 1px solid #e2e8f0;
+                    padding: 24px 20px;
                     text-align: center;
-                    backdrop-filter: blur(10px);
+                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
                 }
                 
                 .header h1 {
-                    font-size: 2.5em;
-                    margin-bottom: 10px;
-                    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+                    font-size: 2.2em;
+                    font-weight: 700;
+                    color: #1e293b;
+                    margin-bottom: 8px;
                 }
                 
                 .week-info {
-                    font-size: 1.2em;
-                    opacity: 0.9;
-                    margin-bottom: 10px;
+                    font-size: 1.1em;
+                    color: #64748b;
+                    margin-bottom: 8px;
+                    font-weight: 500;
                 }
                 
                 .last-update {
                     font-size: 0.9em;
-                    opacity: 0.8;
+                    color: #94a3b8;
                 }
                 
                 .container {
-                    max-width: 1200px;
-                    margin: 20px auto;
-                    padding: 0 20px;
+                    max-width: 900px;
+                    margin: 0 auto;
+                    padding: 24px 20px;
                 }
                 
                 .legend {
@@ -307,61 +312,66 @@ class FantasyTracker:
                 .scores-list {
                     display: flex;
                     flex-direction: column;
-                    gap: 15px;
-                    max-width: 800px;
-                    margin: 0 auto;
+                    gap: 12px;
                 }
                 
                 .team-card {
-                    background: rgba(255,255,255,0.95);
-                    border-radius: 15px;
-                    padding: 20px;
-                    box-shadow: 0 8px 25px rgba(0,0,0,0.15);
-                    transition: transform 0.3s ease, box-shadow 0.3s ease;
-                    border-left: 5px solid #ddd;
+                    background: white;
+                    border-radius: 8px;
+                    border: 1px solid #e2e8f0;
+                    transition: all 0.2s ease;
+                    overflow: hidden;
                 }
                 
                 .team-card:hover {
-                    transform: translateY(-5px);
-                    box-shadow: 0 12px 35px rgba(0,0,0,0.2);
+                    border-color: #cbd5e1;
+                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
                 }
                 
                 .team-card.top6 {
-                    border-left: 5px solid #27ae60;
-                    background: linear-gradient(135deg, rgba(39,174,96,0.1) 0%, rgba(255,255,255,0.95) 100%);
+                    border-left: 4px solid #10b981;
+                    background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, white 100%);
                 }
                 
                 .team-header {
-                    display: flex;
-                    justify-content: space-between;
+                    display: grid;
+                    grid-template-columns: 60px 1fr 100px;
                     align-items: center;
-                    margin-bottom: 15px;
+                    padding: 20px;
+                    background: #f8fafc;
+                    border-bottom: 1px solid #e2e8f0;
+                    gap: 16px;
                 }
                 
                 .team-rank {
-                    font-size: 1.5em;
-                    font-weight: bold;
-                    color: #3498db;
-                    min-width: 40px;
+                    font-size: 2.2em;
+                    font-weight: 800;
+                    color: #64748b;
+                    text-align: center;
+                    line-height: 1;
+                }
+                
+                .top6 .team-rank {
+                    color: #10b981;
                 }
                 
                 .team-name {
-                    font-size: 1.3em;
-                    font-weight: bold;
-                    color: #2c3e50;
-                    flex-grow: 1;
-                    margin: 0 15px;
+                    font-size: 1.2em;
+                    font-weight: 600;
+                    color: #1e293b;
+                    line-height: 1.3;
                 }
                 
                 .team-score {
                     font-weight: 700;
                     font-size: 1.8em;
-                    color: #e74c3c;
+                    color: #dc2626;
                     text-align: right;
+                    line-height: 1;
                 }
                 
                 .top6 .team-score {
-                    color: #27ae60;
+                    color: #10b981;
                 }
                 
                 .finished {
@@ -370,56 +380,84 @@ class FantasyTracker:
                 }
                 
                 .top6-badge {
-                    background: #27ae60;
+                    background: #10b981;
                     color: white;
-                    padding: 4px 12px;
-                    border-radius: 20px;
-                    font-size: 0.8em;
-                    font-weight: bold;
-                    margin-left: 10px;
-                    animation: pulse 2s infinite;
-                }
-                
-                @keyframes pulse {
-                    0% { opacity: 1; }
-                    50% { opacity: 0.7; }
-                    100% { opacity: 1; }
+                    padding: 4px 8px;
+                    border-radius: 4px;
+                    font-size: 0.7em;
+                    font-weight: 600;
+                    margin-left: 8px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
                 }
                 
                 .player-info {
-                    margin-top: 15px;
+                    padding: 16px 20px 20px;
+                    background: white;
                 }
                 
                 .player-section {
-                    margin-bottom: 10px;
+                    margin-bottom: 12px;
+                    padding: 12px;
+                    border-radius: 6px;
+                    border: 1px solid #e2e8f0;
+                }
+                
+                .player-section:last-child {
+                    margin-bottom: 0;
+                }
+                
+                .player-section.playing-section {
+                    background: rgba(16, 185, 129, 0.05);
+                    border-color: rgba(16, 185, 129, 0.2);
+                }
+                
+                .player-section.remaining-section {
+                    background: rgba(245, 158, 11, 0.05);
+                    border-color: rgba(245, 158, 11, 0.2);
+                }
+                
+                .player-section.finished-section {
+                    background: rgba(107, 114, 128, 0.05);
+                    border-color: rgba(107, 114, 128, 0.2);
                 }
                 
                 .player-label {
-                    font-weight: bold;
-                    color: #34495e;
-                    margin-bottom: 5px;
+                    font-weight: 600;
+                    font-size: 0.9em;
+                    margin-bottom: 8px;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
                 }
                 
-                .playing {
-                    color: #27ae60;
+                .playing .player-label {
+                    color: #059669;
                 }
                 
-                .remaining {
-                    color: #f39c12;
+                .remaining .player-label {
+                    color: #d97706;
+                }
+                
+                .finished .player-label {
+                    color: #6b7280;
                 }
                 
                 .player-list {
-                    font-size: 0.9em;
-                    line-height: 1.4;
+                    font-size: 0.85em;
+                    line-height: 1.5;
+                    color: #374151;
                 }
                 
                 .player-count {
-                    display: inline-block;
-                    background: #ecf0f1;
-                    padding: 2px 8px;
+                    background: rgba(0, 0, 0, 0.1);
+                    color: rgba(0, 0, 0, 0.7);
+                    padding: 2px 6px;
                     border-radius: 12px;
                     font-size: 0.8em;
-                    margin-left: 8px;
+                    font-weight: 500;
+                    min-width: 20px;
+                    text-align: center;
                 }
                 
                 .loading {
@@ -493,9 +531,9 @@ class FantasyTracker:
                         
                         <div class="player-info">
                             {% if team.currently_playing %}
-                            <div class="player-section">
-                                <div class="player-label playing">
-                                    🟢 Currently Playing 
+                            <div class="player-section playing-section playing">
+                                <div class="player-label">
+                                    <span>🟢 Currently Playing</span>
                                     <span class="player-count">{{ team.players_playing_count }}</span>
                                 </div>
                                 <div class="player-list">
@@ -505,9 +543,9 @@ class FantasyTracker:
                             {% endif %}
                             
                             {% if team.yet_to_play %}
-                            <div class="player-section">
-                                <div class="player-label remaining">
-                                    ⏳ Yet to Play 
+                            <div class="player-section remaining-section remaining">
+                                <div class="player-label">
+                                    <span>⏳ Yet to Play</span>
                                     <span class="player-count">{{ team.players_remaining_count }}</span>
                                 </div>
                                 <div class="player-list">
@@ -517,9 +555,9 @@ class FantasyTracker:
                             {% endif %}
                             
                             {% if team.finished_playing %}
-                            <div class="player-section">
-                                <div class="player-label finished">
-                                    ✅ Finished Playing 
+                            <div class="player-section finished-section finished">
+                                <div class="player-label">
+                                    <span>✅ Finished Playing</span>
                                     <span class="player-count">{{ team.players_finished_count }}</span>
                                 </div>
                                 <div class="player-list">

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Ensures proper rendering on mobile devices -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fantasy Football Tracker</title>
+    
+    <!-- Link to our CSS file - Flask will find this in the static folder -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='styling/main_style.css') }}">
+    
+    <!-- Auto refresh the page every 90 seconds to get new data -->
+    <meta http-equiv="refresh" content="90">
+</head>
+<body>
+    <!-- Main container for all content -->
+    <div class="container">
+        <h1>Fantasy Football Tracker</h1>
+        
+        <!-- Container for all fantasy team data -->
+        <div class="fantasy-data">
+            <!-- Loop through each team in our data -->
+            {% for team in fantasy_data %}
+                <!-- Individual team card -->
+                <div class="team-card">
+                    <!-- Team name from our fantasy_data -->
+                    <h2>{{ team.team_name }}</h2>
+                    
+                    <!-- Team's current score -->
+                    <div class="score">
+                        Current Score: <span class="score-value">{{ team.current_score }}</span>
+                    </div>
+                    
+                    <!-- Active players section -->
+                    <div class="players">
+                        <h3>Active Players</h3>
+                        <ul>
+                            <!-- Loop through active players -->
+                            {% for player in team.active_players %}
+                                <li>{{ player }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+
+                    <!-- Bench players section -->
+                    <div class="bench">
+                        <h3>Bench</h3>
+                        <ul>
+                            <!-- Loop through bench players -->
+                            {% for player in team.bench %}
+                                <li>{{ player }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🏈 Fantasy Football Live Scores Tracker
 
 A real-time fantasy football score tracker that displays live scores, player statuses, and team rankings from your ESPN Fantasy Football league.
@@ -107,3 +108,6 @@ Feel free to submit issues and enhancement requests!
 ## License
 
 MIT License - feel free to use and modify as needed.
+=======
+# ESPN_fantasy_football_live_standings
+>>>>>>> 458c046d162a64c7a8154adb0cdffd7f730cedb0

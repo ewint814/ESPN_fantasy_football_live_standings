@@ -1,12 +1,5 @@
-<<<<<<< HEAD
-flask==2.3.3
-espn-api==0.26.0
-pandas==2.0.3
-requests==2.31.0
-python-dotenv==1.0.0
-=======
-flask
-espn-api
-gunicorn
-python-dotenv
->>>>>>> 458c046d162a64c7a8154adb0cdffd7f730cedb0
+flask==3.1.2
+espn-api==0.45.1
+requests==2.32.5
+python-dotenv==1.1.1
+gunicorn==21.2.0

@@ -1,0 +1,5 @@
+flask==2.3.3
+espn-api==0.26.0
+pandas==2.0.3
+requests==2.31.0
+python-dotenv==1.0.0

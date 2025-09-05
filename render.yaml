@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: fantasy-football-tracker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python fantasy_football_enhanced.py
+    envVars:
+      - key: ESPN_LEAGUE_ID
+        value: 637021
+      - key: ESPN_S2
+        sync: false  # This will be set manually in Render dashboard for security
+      - key: ESPN_SWID
+        sync: false  # This will be set manually in Render dashboard for security
+      - key: PORT
+        value: 5000

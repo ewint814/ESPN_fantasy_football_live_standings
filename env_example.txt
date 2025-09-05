@@ -1,0 +1,11 @@
+# Copy this file to .env and fill in your actual values
+# Don't commit the .env file to git - it contains sensitive information
+
+# ESPN Fantasy Football Credentials
+ESPN_LEAGUE_ID=637021
+ESPN_S2=your_espn_s2_cookie_here
+ESPN_SWID=your_espn_swid_cookie_here
+
+# Optional: Override default settings
+# UPDATE_INTERVAL=90
+# PORT=5000

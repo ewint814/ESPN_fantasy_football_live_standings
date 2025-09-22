@@ -199,13 +199,24 @@ class FantasyTracker:
                         'total_starters': total_starters
                     })
             
-            # Sort by live score (highest first)
+            # Sort by live score (highest first) for current rankings
             teams_data.sort(key=lambda x: x['live_score'], reverse=True)
             
-            # Add ranking
+            # Add current ranking and top 6 status
             for i, team in enumerate(teams_data):
                 team['rank'] = i + 1
-                team['is_top6'] = i < 6  # Top 6 get the extra win
+                team['is_current_top6'] = i < 6  # Currently in top 6
+            
+            # Sort by projected score to determine projected top 6
+            teams_sorted_by_projection = sorted(teams_data, key=lambda x: x['projected_score'], reverse=True)
+            
+            # Add projected top 6 status
+            for i, team in enumerate(teams_sorted_by_projection):
+                team['projected_rank'] = i + 1
+                team['is_projected_top6'] = i < 6  # Projected to be in top 6
+            
+            # Sort back by live score for display
+            teams_data.sort(key=lambda x: x['live_score'], reverse=True)
             
             return teams_data
             
@@ -265,9 +276,9 @@ class FantasyTracker:
                 
                 body {
                     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-                    background: #f8fafc;
+                    background: #f5f5f5;
                     min-height: 100vh;
-                    color: #1e293b;
+                    color: #333;
                     line-height: 1.5;
                     padding: 0;
                     margin: 0;
@@ -275,33 +286,33 @@ class FantasyTracker:
                 
                 .header {
                     background: white;
-                    border-bottom: 1px solid #e2e8f0;
+                    border-bottom: 1px solid #ddd;
                     padding: 24px 20px;
                     text-align: center;
-                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
                 }
                 
                 .header h1 {
-                    font-size: 2.2em;
-                    font-weight: 700;
-                    color: #1e293b;
+                    font-size: 2em;
+                    font-weight: 600;
+                    color: #333;
                     margin-bottom: 8px;
                 }
                 
                 .week-info {
-                    font-size: 1.1em;
-                    color: #64748b;
+                    font-size: 1em;
+                    color: #666;
                     margin-bottom: 8px;
-                    font-weight: 500;
+                    font-weight: normal;
                 }
                 
                 .last-update {
                     font-size: 0.9em;
-                    color: #94a3b8;
+                    color: #888;
                 }
                 
                 .container {
-                    max-width: 900px;
+                    max-width: 1000px;
                     margin: 0 auto;
                     padding: 24px 20px;
                 }
@@ -331,172 +342,146 @@ class FantasyTracker:
                     font-weight: bold;
                 }
                 
-                .scores-list {
+                .toggle-container {
                     display: flex;
-                    flex-direction: column;
+                    justify-content: center;
                     gap: 12px;
+                    margin-bottom: 24px;
                 }
                 
-                .team-card {
+                .toggle-btn {
+                    padding: 10px 20px;
+                    border: 1px solid #ddd;
                     background: white;
-                    border-radius: 8px;
-                    border: 1px solid #e2e8f0;
+                    color: #666;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: normal;
                     transition: all 0.2s ease;
+                }
+                
+                .toggle-btn:hover {
+                    background: #f8f8f8;
+                    color: #333;
+                }
+                
+                .toggle-btn.active {
+                    background: #333;
+                    color: white;
+                    border-color: #333;
+                }
+                
+                .standings-table {
+                    background: white;
+                    border-radius: 4px;
                     overflow: hidden;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                    border: 1px solid #ddd;
                 }
                 
-                .team-card:hover {
-                    border-color: #cbd5e1;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                .standings {
+                    width: 100%;
+                    border-collapse: collapse;
                 }
                 
-                .team-card.top6 {
-                    border-left: 4px solid #10b981;
-                    background: linear-gradient(90deg, rgba(16, 185, 129, 0.05) 0%, white 100%);
+                .standings thead {
+                    background: #f8f8f8;
+                    color: #333;
                 }
                 
-                .team-header {
-                    display: grid;
-                    grid-template-columns: 60px 1fr 100px 100px;
-                    align-items: center;
-                    padding: 20px;
-                    background: #f8fafc;
-                    border-bottom: 1px solid #e2e8f0;
-                    gap: 16px;
-                }
-                
-                .team-rank {
-                    font-size: 2.2em;
-                    font-weight: 800;
-                    color: #64748b;
-                    text-align: center;
-                    line-height: 1;
-                }
-                
-                .top6 .team-rank {
-                    color: #10b981;
-                }
-                
-                .team-name {
-                    font-size: 1.2em;
+                .standings th {
+                    padding: 12px;
+                    text-align: left;
                     font-weight: 600;
-                    color: #1e293b;
+                    font-size: 0.9em;
+                    border-bottom: 1px solid #ddd;
+                }
+                
+                .standings tbody tr {
+                    border-bottom: 1px solid #eee;
+                }
+                
+                .standings tbody tr:hover {
+                    background: #f9f9f9;
+                }
+                
+                .standings tbody tr.top6-row {
+                    background: #f0f8f0;
+                    border-left: 3px solid #28a745;
+                }
+                
+                .standings td {
+                    padding: 12px;
+                    vertical-align: middle;
+                }
+                
+                .rank-cell {
+                    font-weight: 700;
+                    font-size: 1.1em;
+                    color: #666;
+                    text-align: center;
+                    width: 60px;
+                }
+                
+                .top6-row .rank-cell {
+                    color: #28a745;
+                }
+                
+                .team-cell {
+                    font-weight: 600;
+                    color: #333;
+                    font-size: 1em;
+                }
+                
+                .score-cell {
+                    font-weight: 700;
+                    font-size: 1.1em;
+                    color: #333;
+                    text-align: right;
+                    width: 100px;
+                }
+                
+                .top6-row .score-cell {
+                    color: #28a745;
+                }
+                
+                .players-cell {
+                    max-width: 300px;
+                }
+                
+                .player-names {
+                    font-size: 0.85em;
+                    color: #666;
                     line-height: 1.3;
                 }
                 
-                .team-score {
-                    font-weight: 700;
-                    font-size: 1.8em;
-                    color: #dc2626;
-                    text-align: right;
-                    line-height: 1;
-                }
-                
-                .top6 .team-score {
-                    color: #10b981;
-                }
-                
-                .team-projected {
-                    font-weight: 600;
-                    font-size: 1.1em;
-                    color: #6366f1;
-                    text-align: right;
-                    line-height: 1;
-                }
-                
-                .projected-label {
-                    font-size: 0.7em;
-                    color: #94a3b8;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                    display: block;
-                    margin-bottom: 2px;
-                }
-                
-                .finished {
-                    color: #95a5a6;
+                .no-players {
                     font-style: italic;
+                    color: #999;
+                    font-size: 0.85em;
                 }
                 
-                .top6-badge {
-                    background: #10b981;
+                .status-cell {
+                    text-align: center;
+                    width: 80px;
+                }
+                
+                .status-badge {
                     color: white;
-                    padding: 4px 8px;
-                    border-radius: 4px;
+                    padding: 3px 6px;
+                    border-radius: 3px;
                     font-size: 0.7em;
                     font-weight: 600;
-                    margin-left: 8px;
                     text-transform: uppercase;
-                    letter-spacing: 0.5px;
+                    display: inline-block;
                 }
                 
-                .player-info {
-                    padding: 16px 20px 20px;
-                    background: white;
+                .current-badge {
+                    background: #28a745;
                 }
                 
-                .player-section {
-                    margin-bottom: 12px;
-                    padding: 12px;
-                    border-radius: 6px;
-                    border: 1px solid #e2e8f0;
-                }
-                
-                .player-section:last-child {
-                    margin-bottom: 0;
-                }
-                
-                .player-section.playing-section {
-                    background: rgba(16, 185, 129, 0.05);
-                    border-color: rgba(16, 185, 129, 0.2);
-                }
-                
-                .player-section.remaining-section {
-                    background: rgba(245, 158, 11, 0.05);
-                    border-color: rgba(245, 158, 11, 0.2);
-                }
-                
-                .player-section.finished-section {
-                    background: rgba(107, 114, 128, 0.05);
-                    border-color: rgba(107, 114, 128, 0.2);
-                }
-                
-                .player-label {
-                    font-weight: 600;
-                    font-size: 0.9em;
-                    margin-bottom: 8px;
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-                
-                .playing .player-label {
-                    color: #059669;
-                }
-                
-                .remaining .player-label {
-                    color: #d97706;
-                }
-                
-                .finished .player-label {
-                    color: #6b7280;
-                }
-                
-                .player-list {
-                    font-size: 0.85em;
-                    line-height: 1.5;
-                    color: #374151;
-                }
-                
-                .player-count {
-                    background: rgba(0, 0, 0, 0.1);
-                    color: rgba(0, 0, 0, 0.7);
-                    padding: 2px 6px;
-                    border-radius: 12px;
-                    font-size: 0.8em;
-                    font-weight: 500;
-                    min-width: 20px;
-                    text-align: center;
+                .projected-badge {
+                    background: #007bff;
                 }
                 
                 .loading {
@@ -508,29 +493,58 @@ class FantasyTracker:
                 
                 @media (max-width: 768px) {
                     .header h1 {
-                        font-size: 2em;
+                        font-size: 1.8em;
+                    }
+                    
+                    .container {
+                        padding: 20px 16px;
                     }
                     
                     .team-header {
-                        grid-template-columns: 1fr;
+                        flex-direction: column;
+                        align-items: center;
                         text-align: center;
+                        gap: 16px;
+                    }
+                    
+                    .team-left {
+                        flex-direction: column;
                         gap: 8px;
                     }
                     
+                    .team-rank {
+                        font-size: 2em;
+                    }
+                    
                     .team-name {
-                        margin: 10px 0;
+                        font-size: 1.2em;
                     }
                     
-                    .team-score, .team-projected {
-                        text-align: center;
+                    .team-scores {
+                        align-items: center;
                     }
                     
-                    .scores-list {
-                        margin: 0 10px;
+                    .team-score {
+                        font-size: 2em;
                     }
                 }
             </style>
             <script>
+                // Toggle between current and projected standings
+                function showCurrent() {
+                    document.getElementById('currentStandings').style.display = 'block';
+                    document.getElementById('projectedStandings').style.display = 'none';
+                    document.getElementById('currentBtn').classList.add('active');
+                    document.getElementById('projectedBtn').classList.remove('active');
+                }
+                
+                function showProjected() {
+                    document.getElementById('currentStandings').style.display = 'none';
+                    document.getElementById('projectedStandings').style.display = 'block';
+                    document.getElementById('currentBtn').classList.remove('active');
+                    document.getElementById('projectedBtn').classList.add('active');
+                }
+                
                 // Auto-refresh every 90 seconds
                 setTimeout(() => {
                     location.reload();
@@ -557,73 +571,82 @@ class FantasyTracker:
             </div>
             
             <div class="container">
+                <div class="toggle-container">
+                    <button id="currentBtn" class="toggle-btn active" onclick="showCurrent()">Current Standings</button>
+                    <button id="projectedBtn" class="toggle-btn" onclick="showProjected()">Projected Standings</button>
+                </div>
                 
                 {% if scores %}
-                <div class="scores-list">
-                    {% for team in scores %}
-                    <div class="team-card {{ 'top6' if team.is_top6 else '' }}">
-                        <div class="team-header">
-                            <div class="team-rank">#{{ team.rank }}</div>
-                            <div class="team-name">
-                                {{ team.team_name }}
-                                {% if team.is_top6 %}
-                                <span class="top6-badge">TOP 6</span>
-                                {% endif %}
-                            </div>
-                            <div class="team-score">
-                                {{ "%.1f"|format(team.live_score) }}
-                            </div>
-                            <div class="team-projected">
-                                <span class="projected-label">Projected</span>
-                                {{ "%.1f"|format(team.projected_score) }}
-                            </div>
-                        </div>
-                        
-                        <div class="player-info">
-                            {% if team.currently_playing %}
-                            <div class="player-section playing-section playing">
-                                <div class="player-label">
-                                    <span>🟢 Currently Playing</span>
-                                    <span class="player-count">{{ team.players_playing_count }}</span>
-                                </div>
-                                <div class="player-list">
-                                    {{ team.currently_playing | join(', ') }}
-                                </div>
-                            </div>
-                            {% endif %}
-                            
-                            {% if team.yet_to_play %}
-                            <div class="player-section remaining-section remaining">
-                                <div class="player-label">
-                                    <span>⏳ Yet to Play</span>
-                                    <span class="player-count">{{ team.players_remaining_count }}</span>
-                                </div>
-                                <div class="player-list">
-                                    {{ team.yet_to_play | join(', ') }}
-                                </div>
-                            </div>
-                            {% endif %}
-                            
-                            {% if team.finished_playing %}
-                            <div class="player-section finished-section finished">
-                                <div class="player-label">
-                                    <span>✅ Finished Playing</span>
-                                    <span class="player-count">{{ team.players_finished_count }}</span>
-                                </div>
-                                <div class="player-list">
-                                    {{ team.finished_playing | join(', ') }}
-                                </div>
-                            </div>
-                            {% endif %}
-                            
-                            {% if not team.currently_playing and not team.yet_to_play and not team.finished_playing %}
-                            <div class="player-section">
-                                <div class="player-label">✅ All players finished</div>
-                            </div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    {% endfor %}
+                <!-- Current Standings Table -->
+                <div id="currentStandings" class="standings-table">
+                    <table class="standings">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Team</th>
+                                <th>Score</th>
+                                <th>Yet to Play</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for team in scores %}
+                            <tr class="{{ 'top6-row' if team.is_current_top6 else '' }}">
+                                <td class="rank-cell">{{ team.rank }}</td>
+                                <td class="team-cell">{{ team.team_name }}</td>
+                                <td class="score-cell">{{ "%.1f"|format(team.live_score) }}</td>
+                                <td class="players-cell">
+                                    {% if team.yet_to_play %}
+                                        <div class="player-names">{{ team.yet_to_play | join(', ') }}</div>
+                                    {% else %}
+                                        <span class="no-players">All done</span>
+                                    {% endif %}
+                                </td>
+                                <td class="status-cell">
+                                    {% if team.is_current_top6 %}
+                                        <span class="status-badge current-badge">TOP 6</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Projected Standings Table -->
+                <div id="projectedStandings" class="standings-table" style="display: none;">
+                    <table class="standings">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Team</th>
+                                <th>Projected</th>
+                                <th>Yet to Play</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for team in scores|sort(attribute='projected_score', reverse=true) %}
+                            <tr class="{{ 'top6-row' if team.is_projected_top6 else '' }}">
+                                <td class="rank-cell">{{ team.projected_rank }}</td>
+                                <td class="team-cell">{{ team.team_name }}</td>
+                                <td class="score-cell">{{ "%.1f"|format(team.projected_score) }}</td>
+                                <td class="players-cell">
+                                    {% if team.yet_to_play %}
+                                        <div class="player-names">{{ team.yet_to_play | join(', ') }}</div>
+                                    {% else %}
+                                        <span class="no-players">All done</span>
+                                    {% endif %}
+                                </td>
+                                <td class="status-cell">
+                                    {% if team.is_projected_top6 %}
+                                        <span class="status-badge projected-badge">TOP 6</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
                 {% else %}
                 <div class="loading">

@@ -133,12 +133,11 @@ class FantasyTracker:
                     # Get team name safely
                     team_name = getattr(team, 'team_name', 'Unknown Team')
                     
-                    # Analyze player statuses and calculate projections
+                    # Analyze player statuses (simplified - no projections for now)
                     currently_playing = []
                     yet_to_play = []
                     finished_playing = []
                     total_starters = 0
-                    projected_total = 0.0
                     
                     for player in lineup:
                         # Skip bench players
@@ -148,48 +147,31 @@ class FantasyTracker:
                         total_starters += 1
                         player_name = getattr(player, 'name', 'Unknown')
                         player_points = getattr(player, 'points', 0)
-                        projected_points = getattr(player, 'projected_points', 0)
                         
-                        # Enhanced player status detection
+                        # Enhanced player status detection using game_played
                         game_played = getattr(player, 'game_played', None)
                         
-                        if game_played == 0:  # Game hasn't started yet
-                            yet_to_play.append(f"{player_name} (proj: {projected_points:.1f})")
-                            # Use full projection for players who haven't played
-                            projected_total += projected_points
-                        elif game_played == 1:  # Game is in progress or finished
-                            if player_points > 0:
-                                # Player has scored points, likely playing or finished
-                                currently_playing.append(f"{player_name} ({player_points:.1f})")
-                                # For currently playing, use current score + remaining projection if available
-                                if projected_points > player_points:
-                                    projected_total += projected_points  # ESPN's projected_points is final projected score
-                                else:
-                                    projected_total += player_points  # Use current if projection seems stale
-                            else:
-                                # Game played but no points yet (could be currently playing)
-                                currently_playing.append(f"{player_name} (0.0)")
-                                projected_total += max(projected_points, 0)  # Use projection
-                        elif game_played == 2:  # Game finished
+                        if game_played == 0:
+                            # Game hasn't started yet
+                            yet_to_play.append(player_name)
+                        elif game_played == 100:
+                            # Game is finished
                             finished_playing.append(f"{player_name} ({player_points:.1f})")
-                            projected_total += player_points  # Use actual points for finished games
-                        elif game_played == 100:  # Game in progress (ESPN specific)
+                        elif game_played == 1:
+                            # Game is in progress
                             currently_playing.append(f"{player_name} ({player_points:.1f})")
-                            # For games in progress, ESPN's projected_points is the projected final score
-                            projected_total += max(projected_points, player_points)
+                        elif game_played == 2:
+                            # Alternative finished status
+                            finished_playing.append(f"{player_name} ({player_points:.1f})")
                         else:
-                            # Fallback logic based on points
-                            if player_points > 0:
-                                currently_playing.append(f"{player_name} ({player_points:.1f})")
-                                projected_total += max(projected_points, player_points)
-                            else:
-                                yet_to_play.append(f"{player_name} (proj: {projected_points:.1f})")
-                                projected_total += projected_points
+                            # Fallback for unclear status - assume not played yet
+                            yet_to_play.append(player_name)
+                    
+                    logger.info(f"📊 {team_name}: Live: {score}, Playing: {len(currently_playing)}, Remaining: {len(yet_to_play)}, Finished: {len(finished_playing)}")
                     
                     teams_data.append({
                         'team_name': team_name,
                         'live_score': float(score) if score else 0.0,
-                        'projected_score': projected_total,
                         'currently_playing': currently_playing,
                         'yet_to_play': yet_to_play,
                         'finished_playing': finished_playing,
@@ -199,24 +181,13 @@ class FantasyTracker:
                         'total_starters': total_starters
                     })
             
-            # Sort by live score (highest first) for current rankings
+            # Sort by live score (highest first)
             teams_data.sort(key=lambda x: x['live_score'], reverse=True)
             
-            # Add current ranking and top 6 status
+            # Add ranking and top 6 status
             for i, team in enumerate(teams_data):
                 team['rank'] = i + 1
-                team['is_current_top6'] = i < 6  # Currently in top 6
-            
-            # Sort by projected score to determine projected top 6
-            teams_sorted_by_projection = sorted(teams_data, key=lambda x: x['projected_score'], reverse=True)
-            
-            # Add projected top 6 status
-            for i, team in enumerate(teams_sorted_by_projection):
-                team['projected_rank'] = i + 1
-                team['is_projected_top6'] = i < 6  # Projected to be in top 6
-            
-            # Sort back by live score for display
-            teams_data.sort(key=lambda x: x['live_score'], reverse=True)
+                team['is_top6'] = i < 6  # Top 6 get the extra win
             
             return teams_data
             
@@ -342,34 +313,6 @@ class FantasyTracker:
                     font-weight: bold;
                 }
                 
-                .toggle-container {
-                    display: flex;
-                    justify-content: center;
-                    gap: 12px;
-                    margin-bottom: 24px;
-                }
-                
-                .toggle-btn {
-                    padding: 10px 20px;
-                    border: 1px solid #ddd;
-                    background: white;
-                    color: #666;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-weight: normal;
-                    transition: all 0.2s ease;
-                }
-                
-                .toggle-btn:hover {
-                    background: #f8f8f8;
-                    color: #333;
-                }
-                
-                .toggle-btn.active {
-                    background: #333;
-                    color: white;
-                    border-color: #333;
-                }
                 
                 .standings-table {
                     background: white;
@@ -480,10 +423,6 @@ class FantasyTracker:
                     background: #28a745;
                 }
                 
-                .projected-badge {
-                    background: #007bff;
-                }
-                
                 .loading {
                     text-align: center;
                     color: white;
@@ -530,21 +469,6 @@ class FantasyTracker:
                 }
             </style>
             <script>
-                // Toggle between current and projected standings
-                function showCurrent() {
-                    document.getElementById('currentStandings').style.display = 'block';
-                    document.getElementById('projectedStandings').style.display = 'none';
-                    document.getElementById('currentBtn').classList.add('active');
-                    document.getElementById('projectedBtn').classList.remove('active');
-                }
-                
-                function showProjected() {
-                    document.getElementById('currentStandings').style.display = 'none';
-                    document.getElementById('projectedStandings').style.display = 'block';
-                    document.getElementById('currentBtn').classList.remove('active');
-                    document.getElementById('projectedBtn').classList.add('active');
-                }
-                
                 // Auto-refresh every 90 seconds
                 setTimeout(() => {
                     location.reload();
@@ -571,14 +495,8 @@ class FantasyTracker:
             </div>
             
             <div class="container">
-                <div class="toggle-container">
-                    <button id="currentBtn" class="toggle-btn active" onclick="showCurrent()">Current Standings</button>
-                    <button id="projectedBtn" class="toggle-btn" onclick="showProjected()">Projected Standings</button>
-                </div>
-                
                 {% if scores %}
-                <!-- Current Standings Table -->
-                <div id="currentStandings" class="standings-table">
+                <div class="standings-table">
                     <table class="standings">
                         <thead>
                             <tr>
@@ -591,7 +509,7 @@ class FantasyTracker:
                         </thead>
                         <tbody>
                             {% for team in scores %}
-                            <tr class="{{ 'top6-row' if team.is_current_top6 else '' }}">
+                            <tr class="{{ 'top6-row' if team.is_top6 else '' }}">
                                 <td class="rank-cell">{{ team.rank }}</td>
                                 <td class="team-cell">{{ team.team_name }}</td>
                                 <td class="score-cell">{{ "%.1f"|format(team.live_score) }}</td>
@@ -603,44 +521,8 @@ class FantasyTracker:
                                     {% endif %}
                                 </td>
                                 <td class="status-cell">
-                                    {% if team.is_current_top6 %}
+                                    {% if team.is_top6 %}
                                         <span class="status-badge current-badge">TOP 6</span>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Projected Standings Table -->
-                <div id="projectedStandings" class="standings-table" style="display: none;">
-                    <table class="standings">
-                        <thead>
-                            <tr>
-                                <th>Rank</th>
-                                <th>Team</th>
-                                <th>Projected</th>
-                                <th>Yet to Play</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for team in scores|sort(attribute='projected_score', reverse=true) %}
-                            <tr class="{{ 'top6-row' if team.is_projected_top6 else '' }}">
-                                <td class="rank-cell">{{ team.projected_rank }}</td>
-                                <td class="team-cell">{{ team.team_name }}</td>
-                                <td class="score-cell">{{ "%.1f"|format(team.projected_score) }}</td>
-                                <td class="players-cell">
-                                    {% if team.yet_to_play %}
-                                        <div class="player-names">{{ team.yet_to_play | join(', ') }}</div>
-                                    {% else %}
-                                        <span class="no-players">All done</span>
-                                    {% endif %}
-                                </td>
-                                <td class="status-cell">
-                                    {% if team.is_projected_top6 %}
-                                        <span class="status-badge projected-badge">TOP 6</span>
                                     {% endif %}
                                 </td>
                             </tr>

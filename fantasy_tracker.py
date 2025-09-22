@@ -76,28 +76,36 @@ class FantasyTracker:
                 if current_week:
                     return current_week
             
-            # For 2025 season, we're in the early weeks
             now = datetime.now()
             
-            # If it's 2025 and before March, we're in the new season
-            if now.year == 2025 and now.month <= 3:
-                return 1  # Early 2025 season
+            # For 2025 NFL season (September 2025 onwards)
+            if now.year == 2025 and now.month >= 9:
+                # NFL season typically starts first Thursday of September
+                # For 2025, let's estimate it started around September 5th
+                season_start = datetime(2025, 9, 5)  # Approximate 2025 season start
+                
+                if now < season_start:
+                    return 1
+                
+                days_since_start = (now - season_start).days
+                week = min(18, max(1, (days_since_start // 7) + 1))
+                return week
+            
+            # If it's early 2025 (before September), we're in offseason
+            elif now.year == 2025 and now.month <= 3:
+                return 1  # Offseason/early season
             
             # If it's September 2024 or later in 2024, calculate based on that season
-            if now.year == 2024:
-                if now.month >= 9:
-                    # Approximate first Thursday of September 2024
-                    first_thursday = 1 + (3 - datetime(2024, 9, 1).weekday()) % 7
-                    season_start = datetime(2024, 9, first_thursday)
-                    
-                    if now < season_start:
-                        return 1
-                    
-                    days_since_start = (now - season_start).days
-                    week = min(18, max(1, (days_since_start // 7) + 1))
-                    return week
-                else:
+            elif now.year == 2024 and now.month >= 9:
+                first_thursday = 1 + (3 - datetime(2024, 9, 1).weekday()) % 7
+                season_start = datetime(2024, 9, first_thursday)
+                
+                if now < season_start:
                     return 1
+                
+                days_since_start = (now - season_start).days
+                week = min(18, max(1, (days_since_start // 7) + 1))
+                return week
             
             # Default for any other case
             return 1
@@ -125,11 +133,12 @@ class FantasyTracker:
                     # Get team name safely
                     team_name = getattr(team, 'team_name', 'Unknown Team')
                     
-                    # Analyze player statuses
+                    # Analyze player statuses and calculate projections
                     currently_playing = []
                     yet_to_play = []
                     finished_playing = []
                     total_starters = 0
+                    projected_total = 0.0
                     
                     for player in lineup:
                         # Skip bench players
@@ -139,35 +148,48 @@ class FantasyTracker:
                         total_starters += 1
                         player_name = getattr(player, 'name', 'Unknown')
                         player_points = getattr(player, 'points', 0)
+                        projected_points = getattr(player, 'projected_points', 0)
                         
                         # Enhanced player status detection
                         game_played = getattr(player, 'game_played', None)
                         
                         if game_played == 0:  # Game hasn't started yet
-                            yet_to_play.append(player_name)
+                            yet_to_play.append(f"{player_name} (proj: {projected_points:.1f})")
+                            # Use full projection for players who haven't played
+                            projected_total += projected_points
                         elif game_played == 1:  # Game is in progress or finished
                             if player_points > 0:
                                 # Player has scored points, likely playing or finished
-                                if hasattr(player, 'game_date') and hasattr(player, 'game_status'):
-                                    # Try to determine if game is still active
-                                    currently_playing.append(f"{player_name} ({player_points:.1f})")
+                                currently_playing.append(f"{player_name} ({player_points:.1f})")
+                                # For currently playing, use current score + remaining projection if available
+                                if projected_points > player_points:
+                                    projected_total += projected_points  # ESPN's projected_points is final projected score
                                 else:
-                                    currently_playing.append(f"{player_name} ({player_points:.1f})")
+                                    projected_total += player_points  # Use current if projection seems stale
                             else:
                                 # Game played but no points yet (could be currently playing)
                                 currently_playing.append(f"{player_name} (0.0)")
+                                projected_total += max(projected_points, 0)  # Use projection
                         elif game_played == 2:  # Game finished
                             finished_playing.append(f"{player_name} ({player_points:.1f})")
+                            projected_total += player_points  # Use actual points for finished games
+                        elif game_played == 100:  # Game in progress (ESPN specific)
+                            currently_playing.append(f"{player_name} ({player_points:.1f})")
+                            # For games in progress, ESPN's projected_points is the projected final score
+                            projected_total += max(projected_points, player_points)
                         else:
                             # Fallback logic based on points
                             if player_points > 0:
                                 currently_playing.append(f"{player_name} ({player_points:.1f})")
+                                projected_total += max(projected_points, player_points)
                             else:
-                                yet_to_play.append(player_name)
+                                yet_to_play.append(f"{player_name} (proj: {projected_points:.1f})")
+                                projected_total += projected_points
                     
                     teams_data.append({
                         'team_name': team_name,
                         'live_score': float(score) if score else 0.0,
+                        'projected_score': projected_total,
                         'currently_playing': currently_playing,
                         'yet_to_play': yet_to_play,
                         'finished_playing': finished_playing,
@@ -335,7 +357,7 @@ class FantasyTracker:
                 
                 .team-header {
                     display: grid;
-                    grid-template-columns: 60px 1fr 100px;
+                    grid-template-columns: 60px 1fr 100px 100px;
                     align-items: center;
                     padding: 20px;
                     background: #f8fafc;
@@ -372,6 +394,23 @@ class FantasyTracker:
                 
                 .top6 .team-score {
                     color: #10b981;
+                }
+                
+                .team-projected {
+                    font-weight: 600;
+                    font-size: 1.1em;
+                    color: #6366f1;
+                    text-align: right;
+                    line-height: 1;
+                }
+                
+                .projected-label {
+                    font-size: 0.7em;
+                    color: #94a3b8;
+                    text-transform: uppercase;
+                    letter-spacing: 0.5px;
+                    display: block;
+                    margin-bottom: 2px;
                 }
                 
                 .finished {
@@ -473,12 +512,17 @@ class FantasyTracker:
                     }
                     
                     .team-header {
-                        flex-direction: column;
+                        grid-template-columns: 1fr;
                         text-align: center;
+                        gap: 8px;
                     }
                     
                     .team-name {
                         margin: 10px 0;
+                    }
+                    
+                    .team-score, .team-projected {
+                        text-align: center;
                     }
                     
                     .scores-list {
@@ -520,12 +564,18 @@ class FantasyTracker:
                     <div class="team-card {{ 'top6' if team.is_top6 else '' }}">
                         <div class="team-header">
                             <div class="team-rank">#{{ team.rank }}</div>
-                            <div class="team-name">{{ team.team_name }}</div>
-                            <div class="team-score">
-                                {{ "%.1f"|format(team.live_score) }}
+                            <div class="team-name">
+                                {{ team.team_name }}
                                 {% if team.is_top6 %}
                                 <span class="top6-badge">TOP 6</span>
                                 {% endif %}
+                            </div>
+                            <div class="team-score">
+                                {{ "%.1f"|format(team.live_score) }}
+                            </div>
+                            <div class="team-projected">
+                                <span class="projected-label">Projected</span>
+                                {{ "%.1f"|format(team.projected_score) }}
                             </div>
                         </div>
                         

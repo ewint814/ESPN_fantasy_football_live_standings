@@ -13,3 +13,6 @@ services:
         sync: false  # This will be set manually in Render dashboard for security
       - key: PORT
         value: 5000
+
+
+

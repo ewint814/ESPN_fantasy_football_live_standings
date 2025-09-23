@@ -11,6 +11,7 @@ A live scoring tracker for ESPN Fantasy Football that shows:
 
 import os
 import logging
+import requests
 from datetime import datetime
 from flask import Flask, render_template_string, jsonify
 import threading
@@ -35,6 +36,7 @@ class FantasyTracker:
         self.live_scores = []
         self.last_update = None
         self.current_week = self._get_current_week()
+        self.game_clocks = {}  # Cache for NFL game clock data
         
         # Initialize ESPN connection
         self._connect_to_espn()
@@ -48,9 +50,12 @@ class FantasyTracker:
     def _connect_to_espn(self):
         """Connect to ESPN Fantasy Football API"""
         try:
-            league_id = os.getenv('ESPN_LEAGUE_ID', '637021')
-            espn_s2 = os.getenv('ESPN_S2', 'AEBCCakbu%2B0%2FhbFeK5%2FgjfgBqJJfZKHfNjzHL2jCCx75d%2BXAUfjrRUGlUYOU%2BDcMyLnvZF9ASrpPFx%2Fd5IA4P8Yq1qMhcRE%2BqSa10zDy8NknbQWjzwKh3OVfI%2FCVZd2eKwMSzCNk54bD4FYRXMOMOVCp%2BwzXrZvHaoKs9nbe3Bsm%2BaKhCXOQ02AZbkrcGq%2B2naO9aSY3cXRoDjZaFgxYYcJnl7K23qiSoNPtt5MDZNjTeWFomxWJoC8Q84ob%2BrCve1L1ovlMK6Kg9KJ%2Br6UIYT2O')
-            swid = os.getenv('ESPN_SWID', '{1BFA93C2-363A-4C34-A4BD-E6CE5E0C309B}')
+            league_id = os.getenv('ESPN_LEAGUE_ID')
+            espn_s2 = os.getenv('ESPN_S2')
+            swid = os.getenv('ESPN_SWID')
+            
+            if not all([league_id, espn_s2, swid]):
+                raise ValueError("Missing required environment variables: ESPN_LEAGUE_ID, ESPN_S2, ESPN_SWID")
             
             self.league = League(
                 league_id=int(league_id),
@@ -59,13 +64,12 @@ class FantasyTracker:
                 swid=swid
             )
             
-            logger.info(f"✅ Connected to ESPN league {league_id}")
-            logger.info(f"🗓️  League year: {self.league.year}")
-            logger.info(f"📅 Current week will be: {self._get_current_week()}")
-            
+            # Test the connection
+            teams = self.league.teams
+            return True
         except Exception as e:
-            logger.error(f"❌ Failed to connect to ESPN: {e}")
             self.league = None
+            return False
     
     def _get_current_week(self):
         """Auto-detect the current NFL week."""
@@ -111,8 +115,102 @@ class FantasyTracker:
             return 1
             
         except Exception as e:
-            logger.warning(f"Could not determine current week, using week 1: {str(e)}")
             return 1
+    
+    def _get_nfl_game_clocks(self):
+        """Get live game clock data from NFL API"""
+        try:
+            nfl_url = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+            response = requests.get(nfl_url)
+            
+            if response.status_code == 200:
+                data = response.json()
+                games = data.get('events', [])
+                
+                game_clocks = {}
+                
+                for game in games:
+                    # Get team abbreviations
+                    competitors = game.get('competitions', [{}])[0].get('competitors', [])
+                    if len(competitors) >= 2:
+                        team1 = competitors[0].get('team', {}).get('abbreviation', '')
+                        team2 = competitors[1].get('team', {}).get('abbreviation', '')
+                        
+                        status = game.get('status', {})
+                        clock = status.get('displayClock', '0:00')
+                        period = status.get('period', 1)
+                        game_status = status.get('type', {}).get('name', 'unknown')
+                        
+                        # Calculate minutes played
+                        minutes_played = self._calculate_minutes_played(clock, period, game_status)
+                        
+                        # Store for both teams
+                        for team in [team1, team2]:
+                            if team:
+                                game_clocks[team] = {
+                                    'clock': clock,
+                                    'period': period,
+                                    'status': game_status,
+                                    'minutes_played': minutes_played,
+                                    'game_progress': min(minutes_played / 60.0, 1.0)
+                                }
+                
+                return game_clocks
+            
+        except Exception as e:
+            return {}
+    
+    def _calculate_minutes_played(self, clock, period, status):
+        """Calculate how many minutes have been played in the game"""
+        try:
+            if status.lower() in ['status_final', 'final', 'finished']:
+                return 60  # Game is over
+            
+            if status.lower() in ['status_scheduled', 'scheduled', 'pre']:
+                return 0  # Game hasn't started
+            
+            # Parse clock (format like "12:34" or "0:00")
+            if ':' in clock:
+                minutes, seconds = clock.split(':')
+                remaining_in_quarter = int(minutes) + int(seconds) / 60.0
+            else:
+                remaining_in_quarter = 0
+            
+            # Each quarter is 15 minutes
+            completed_quarters = max(0, period - 1)
+            minutes_in_current_quarter = 15 - remaining_in_quarter
+            
+            total_minutes = (completed_quarters * 15) + minutes_in_current_quarter
+            
+            # Cap at 60 minutes (regulation)
+            return min(total_minutes, 60)
+            
+        except Exception as e:
+            return 30  # Default to halfway through game
+    
+    def _calculate_live_projection(self, pre_game_projection, current_points, minutes_played):
+        """Calculate live projection based on scoring rate"""
+        try:
+            if minutes_played >= 60:
+                # Game is finished
+                return current_points
+            
+            if minutes_played <= 5:
+                # Game just started, use pre-game projection
+                return pre_game_projection
+            
+            # Calculate current scoring rate (points per minute)
+            scoring_rate = current_points / minutes_played
+            
+            # Project for full 60 minutes
+            projected_final = scoring_rate * 60
+            
+            # Use the higher of projection-based or rate-based
+            # This prevents projections from dropping too much if a player has a slow start
+            return max(projected_final, pre_game_projection * 0.5)
+            
+        except Exception as e:
+            return pre_game_projection
     
     def _get_live_scores(self):
         """Fetch current live scores and player info"""
@@ -120,7 +218,9 @@ class FantasyTracker:
             return []
         
         try:
-            logger.info(f"🔍 Fetching scores for week {self.current_week}")
+            # Get live game clocks for projections
+            self.game_clocks = self._get_nfl_game_clocks()
+            
             box_scores = self.league.box_scores(week=self.current_week)
             teams_data = []
             
@@ -133,11 +233,12 @@ class FantasyTracker:
                     # Get team name safely
                     team_name = getattr(team, 'team_name', 'Unknown Team')
                     
-                    # Analyze player statuses (simplified - no projections for now)
+                    # Analyze player statuses and calculate live projections
                     currently_playing = []
                     yet_to_play = []
                     finished_playing = []
                     total_starters = 0
+                    projected_total = 0.0
                     
                     for player in lineup:
                         # Skip bench players
@@ -147,31 +248,47 @@ class FantasyTracker:
                         total_starters += 1
                         player_name = getattr(player, 'name', 'Unknown')
                         player_points = getattr(player, 'points', 0)
+                        pre_game_projection = getattr(player, 'projected_points', 0)
+                        pro_team = getattr(player, 'proTeam', '')
+                        
+                        # Get game clock data for this player's team
+                        clock_data = self.game_clocks.get(pro_team, {})
+                        minutes_played = clock_data.get('minutes_played', 30)  # Default to halfway
+                        
+                        # Calculate live projection
+                        live_projection = self._calculate_live_projection(
+                            pre_game_projection, player_points, minutes_played
+                        )
                         
                         # Enhanced player status detection using game_played
                         game_played = getattr(player, 'game_played', None)
                         
                         if game_played == 0:
                             # Game hasn't started yet
-                            yet_to_play.append(player_name)
+                            yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
+                            projected_total += pre_game_projection
                         elif game_played == 100:
                             # Game is finished
                             finished_playing.append(f"{player_name} ({player_points:.1f})")
+                            projected_total += player_points
                         elif game_played == 1:
                             # Game is in progress
                             currently_playing.append(f"{player_name} ({player_points:.1f})")
+                            projected_total += live_projection
                         elif game_played == 2:
                             # Alternative finished status
                             finished_playing.append(f"{player_name} ({player_points:.1f})")
+                            projected_total += player_points
                         else:
                             # Fallback for unclear status - assume not played yet
-                            yet_to_play.append(player_name)
+                            yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
+                            projected_total += pre_game_projection
                     
-                    logger.info(f"📊 {team_name}: Live: {score}, Playing: {len(currently_playing)}, Remaining: {len(yet_to_play)}, Finished: {len(finished_playing)}")
                     
                     teams_data.append({
                         'team_name': team_name,
                         'live_score': float(score) if score else 0.0,
+                        'projected_score': projected_total,
                         'currently_playing': currently_playing,
                         'yet_to_play': yet_to_play,
                         'finished_playing': finished_playing,
@@ -181,18 +298,28 @@ class FantasyTracker:
                         'total_starters': total_starters
                     })
             
-            # Sort by live score (highest first)
+            # Sort by live score (highest first) for current rankings
             teams_data.sort(key=lambda x: x['live_score'], reverse=True)
             
-            # Add ranking and top 6 status
+            # Add current ranking and top 6 status
             for i, team in enumerate(teams_data):
                 team['rank'] = i + 1
-                team['is_top6'] = i < 6  # Top 6 get the extra win
+                team['is_current_top6'] = i < 6  # Currently in top 6
+            
+            # Sort by projected score to determine projected top 6
+            teams_sorted_by_projection = sorted(teams_data, key=lambda x: x['projected_score'], reverse=True)
+            
+            # Add projected top 6 status
+            for i, team in enumerate(teams_sorted_by_projection):
+                team['projected_rank'] = i + 1
+                team['is_projected_top6'] = i < 6  # Projected to be in top 6
+            
+            # Sort back by live score for display
+            teams_data.sort(key=lambda x: x['live_score'], reverse=True)
             
             return teams_data
             
         except Exception as e:
-            logger.error(f"Error fetching scores: {e}")
             return []
     
     def _update_scores(self):
@@ -201,10 +328,9 @@ class FantasyTracker:
             try:
                 self.live_scores = self._get_live_scores()
                 self.last_update = datetime.now()
-                logger.info(f"📊 Updated scores - {len(self.live_scores)} teams")
                 
             except Exception as e:
-                logger.error(f"Error in score update: {e}")
+                pass
                 
             time.sleep(90)  # Update every 90 seconds
     
@@ -212,7 +338,6 @@ class FantasyTracker:
         """Start the background score update thread"""
         thread = threading.Thread(target=self._update_scores, daemon=True)
         thread.start()
-        logger.info("🔄 Started background score updates")
     
     def _setup_routes(self):
         """Set up Flask web routes"""
@@ -313,6 +438,164 @@ class FantasyTracker:
                     font-weight: bold;
                 }
                 
+                
+                .toggle-container {
+                    display: flex;
+                    justify-content: center;
+                    gap: 12px;
+                    margin-bottom: 24px;
+                }
+                
+                .toggle-btn {
+                    padding: 10px 20px;
+                    border: 1px solid #ddd;
+                    background: white;
+                    color: #666;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-weight: normal;
+                    transition: all 0.2s ease;
+                }
+                
+                .toggle-btn:hover {
+                    background: #f8f8f8;
+                    color: #333;
+                }
+                
+                .toggle-btn.active {
+                    background: #333;
+                    color: white;
+                    border-color: #333;
+                }
+
+                .standings-cards {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 12px;
+                }
+                
+                .team-movement-card {
+                    background: white;
+                    border-radius: 8px;
+                    border: 1px solid #ddd;
+                    padding: 16px;
+                    transition: all 0.2s ease;
+                    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                }
+                
+                .team-movement-card:hover {
+                    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+                }
+                
+                .team-movement-card.current-top6 {
+                    border-left: 4px solid #28a745;
+                    background: linear-gradient(90deg, rgba(40, 167, 69, 0.05) 0%, white 100%);
+                }
+                
+                .card-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 12px;
+                }
+                
+                .rank-badge {
+                    background: #f8f9fa;
+                    color: #495057;
+                    font-weight: 700;
+                    font-size: 1.2em;
+                    padding: 8px 12px;
+                    border-radius: 6px;
+                    min-width: 50px;
+                    text-align: center;
+                }
+                
+                .current-top6 .rank-badge {
+                    background: #28a745;
+                    color: white;
+                }
+                
+                .team-info {
+                    flex: 1;
+                    margin-left: 16px;
+                }
+                
+                .team-name {
+                    font-size: 1.1em;
+                    font-weight: 600;
+                    color: #333;
+                    margin-bottom: 4px;
+                }
+                
+                .status-badges {
+                    display: flex;
+                    gap: 8px;
+                }
+                
+                .movement-indicator {
+                    font-size: 1.1em;
+                    font-weight: 700;
+                }
+                
+                .movement-up {
+                    color: #28a745;
+                }
+                
+                .movement-down {
+                    color: #dc3545;
+                }
+                
+                .movement-same {
+                    color: #6c757d;
+                }
+                
+                .score-progression {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 12px;
+                    font-size: 1.3em;
+                    font-weight: 700;
+                    margin-bottom: 8px;
+                }
+                
+                .current-score {
+                    color: #dc3545;
+                }
+                
+                .arrow {
+                    color: #6c757d;
+                    font-size: 1.1em;
+                }
+                
+                .projected-score {
+                    color: #007bff;
+                }
+                
+                .movement-scores {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    font-weight: 600;
+                }
+                
+                .movement-scores .current-score {
+                    color: #dc3545;
+                }
+                
+                .movement-scores .arrow {
+                    color: #6c757d;
+                }
+                
+                .movement-scores .projected-score {
+                    color: #007bff;
+                }
+                
+                .movement-cell {
+                    text-align: center;
+                    font-weight: 700;
+                    font-size: 1.1em;
+                }
                 
                 .standings-table {
                     background: white;
@@ -423,6 +706,19 @@ class FantasyTracker:
                     background: #28a745;
                 }
                 
+                .projected-badge {
+                    background: #007bff;
+                }
+                
+                .top-scorer-badge {
+                    background: #ffd700;
+                    color: #333;
+                }
+                
+                .parlay-badge {
+                    background: #dc3545;
+                }
+                
                 .loading {
                     text-align: center;
                     color: white;
@@ -469,6 +765,34 @@ class FantasyTracker:
                 }
             </style>
             <script>
+                // Toggle between current, projected, and movement standings
+                function showCurrent() {
+                    document.getElementById('currentStandings').style.display = 'block';
+                    document.getElementById('projectedStandings').style.display = 'none';
+                    document.getElementById('movementStandings').style.display = 'none';
+                    document.getElementById('currentBtn').classList.add('active');
+                    document.getElementById('projectedBtn').classList.remove('active');
+                    document.getElementById('movementBtn').classList.remove('active');
+                }
+                
+                function showProjected() {
+                    document.getElementById('currentStandings').style.display = 'none';
+                    document.getElementById('projectedStandings').style.display = 'block';
+                    document.getElementById('movementStandings').style.display = 'none';
+                    document.getElementById('currentBtn').classList.remove('active');
+                    document.getElementById('projectedBtn').classList.add('active');
+                    document.getElementById('movementBtn').classList.remove('active');
+                }
+                
+                function showMovement() {
+                    document.getElementById('currentStandings').style.display = 'none';
+                    document.getElementById('projectedStandings').style.display = 'none';
+                    document.getElementById('movementStandings').style.display = 'block';
+                    document.getElementById('currentBtn').classList.remove('active');
+                    document.getElementById('projectedBtn').classList.remove('active');
+                    document.getElementById('movementBtn').classList.add('active');
+                }
+                
                 // Auto-refresh every 90 seconds
                 setTimeout(() => {
                     location.reload();
@@ -495,8 +819,16 @@ class FantasyTracker:
             </div>
             
             <div class="container">
+                
                 {% if scores %}
-                <div class="standings-table">
+                <div class="toggle-container">
+                    <button id="currentBtn" class="toggle-btn active" onclick="showCurrent()">Current Standings</button>
+                    <button id="projectedBtn" class="toggle-btn" onclick="showProjected()">Live Projections</button>
+                    <button id="movementBtn" class="toggle-btn" onclick="showMovement()">Movement</button>
+                </div>
+                
+                <!-- Current Standings Table -->
+                <div id="currentStandings" class="standings-table">
                     <table class="standings">
                         <thead>
                             <tr>
@@ -509,7 +841,7 @@ class FantasyTracker:
                         </thead>
                         <tbody>
                             {% for team in scores %}
-                            <tr class="{{ 'top6-row' if team.is_top6 else '' }}">
+                            <tr class="{{ 'top6-row' if team.is_current_top6 else '' }}">
                                 <td class="rank-cell">{{ team.rank }}</td>
                                 <td class="team-cell">{{ team.team_name }}</td>
                                 <td class="score-cell">{{ "%.1f"|format(team.live_score) }}</td>
@@ -521,7 +853,92 @@ class FantasyTracker:
                                     {% endif %}
                                 </td>
                                 <td class="status-cell">
-                                    {% if team.is_top6 %}
+                                    {% if team.rank == 1 %}
+                                        <span class="status-badge top-scorer-badge">TOP SCORER</span>
+                                    {% elif team.rank == scores|length %}
+                                        <span class="status-badge parlay-badge">PARLAY</span>
+                                    {% elif team.is_current_top6 %}
+                                        <span class="status-badge current-badge">TOP 6</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Projected Standings Table -->
+                <div id="projectedStandings" class="standings-table" style="display: none;">
+                    <table class="standings">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Team</th>
+                                <th>Projected</th>
+                                <th>Current</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for team in scores|sort(attribute='projected_score', reverse=true) %}
+                            <tr class="{{ 'top6-row' if team.is_projected_top6 else '' }}">
+                                <td class="rank-cell">{{ team.projected_rank }}</td>
+                                <td class="team-cell">{{ team.team_name }}</td>
+                                <td class="score-cell">{{ "%.1f"|format(team.projected_score) }}</td>
+                                <td class="current-score-cell">{{ "%.1f"|format(team.live_score) }}</td>
+                                <td class="status-cell">
+                                    {% if team.projected_rank == 1 %}
+                                        <span class="status-badge top-scorer-badge">TOP SCORER</span>
+                                    {% elif team.projected_rank == scores|length %}
+                                        <span class="status-badge parlay-badge">PARLAY</span>
+                                    {% elif team.is_projected_top6 %}
+                                        <span class="status-badge projected-badge">TOP 6</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Movement Table -->
+                <div id="movementStandings" class="standings-table" style="display: none;">
+                    <table class="standings">
+                        <thead>
+                            <tr>
+                                <th>Current Rank</th>
+                                <th>Team</th>
+                                <th>Current → Projected</th>
+                                <th>Movement</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for team in scores %}
+                            {% set movement = team.rank - team.projected_rank %}
+                            <tr class="{{ 'top6-row' if team.is_current_top6 else '' }}">
+                                <td class="rank-cell">{{ team.rank }}</td>
+                                <td class="team-cell">{{ team.team_name }}</td>
+                                <td class="movement-scores">
+                                    <span class="current-score">{{ "%.1f"|format(team.live_score) }}</span>
+                                    <span class="arrow">→</span>
+                                    <span class="projected-score">{{ "%.1f"|format(team.projected_score) }}</span>
+                                </td>
+                                <td class="movement-cell">
+                                    {% if movement > 0 %}
+                                        <span class="movement-up">↑{{ movement }}</span>
+                                    {% elif movement < 0 %}
+                                        <span class="movement-down">↓{{ movement|abs }}</span>
+                                    {% else %}
+                                        <span class="movement-same">—</span>
+                                    {% endif %}
+                                </td>
+                                <td class="status-cell">
+                                    {% if team.rank == 1 %}
+                                        <span class="status-badge top-scorer-badge">TOP SCORER</span>
+                                    {% elif team.rank == scores|length %}
+                                        <span class="status-badge parlay-badge">PARLAY</span>
+                                    {% elif team.is_current_top6 %}
                                         <span class="status-badge current-badge">TOP 6</span>
                                     {% endif %}
                                 </td>
@@ -553,7 +970,6 @@ class FantasyTracker:
         if port is None:
             port = int(os.getenv('PORT', 5000))
         
-        logger.info(f"🚀 Starting Fantasy Tracker on http://{host}:{port}")
         self.app.run(host=host, port=port, debug=debug)
 
 if __name__ == "__main__":

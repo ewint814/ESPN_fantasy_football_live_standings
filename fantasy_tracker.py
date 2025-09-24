@@ -12,7 +12,7 @@ A live scoring tracker for ESPN Fantasy Football that shows:
 import os
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template_string, jsonify
 import threading
 import time
@@ -30,6 +30,10 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class FantasyTracker:
+    # =============================================================================
+    # INITIALIZATION & SETUP
+    # =============================================================================
+    
     def __init__(self):
         self.app = Flask(__name__)
         self.league = None
@@ -37,6 +41,9 @@ class FantasyTracker:
         self.last_update = None
         self.current_week = self._get_current_week()
         self.game_clocks = {}  # Cache for NFL game clock data
+        self.api_error = None  # Track API errors for user display
+        self.games_today_cache = None  # Cache if there are games today
+        self.games_check_date = None  # What date we last checked for games
         
         # Initialize ESPN connection
         self._connect_to_espn()
@@ -46,6 +53,10 @@ class FantasyTracker:
         
         # Start background score updates
         self._start_score_updates()
+    
+    # =============================================================================
+    # ESPN API CONNECTION & DATA FETCHING
+    # =============================================================================
     
     def _connect_to_espn(self):
         """Connect to ESPN Fantasy Football API"""
@@ -72,50 +83,47 @@ class FantasyTracker:
             return False
     
     def _get_current_week(self):
-        """Auto-detect the current NFL week."""
+        """Get current NFL week using ESPN's scoreboard API."""
         try:
-            if self.league:
-                # Try to get current week from league settings
-                current_week = getattr(self.league, 'current_week', None)
-                if current_week:
-                    return current_week
+            # First try ESPN's NFL scoreboard API - most reliable
+            response = requests.get('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
+            if response.status_code == 200:
+                data = response.json()
+                if 'week' in data and 'number' in data['week']:
+                    return data['week']['number']
             
+            # Fallback: try to get it from the league object
+            if self.league and hasattr(self.league, 'current_week'):
+                return self.league.current_week
+            
+            # Last resort: simple calculation for current season (2025)
             now = datetime.now()
-            
-            # For 2025 NFL season (September 2025 onwards)
             if now.year == 2025 and now.month >= 9:
-                # NFL season typically starts first Thursday of September
-                # For 2025, let's estimate it started around September 5th
-                season_start = datetime(2025, 9, 5)  # Approximate 2025 season start
-                
+                # 2025 season starts around September 4th
+                season_start = datetime(2025, 9, 4)
                 if now < season_start:
                     return 1
-                
                 days_since_start = (now - season_start).days
-                week = min(18, max(1, (days_since_start // 7) + 1))
-                return week
-            
-            # If it's early 2025 (before September), we're in offseason
-            elif now.year == 2025 and now.month <= 3:
-                return 1  # Offseason/early season
-            
-            # If it's September 2024 or later in 2024, calculate based on that season
+                return min(18, max(1, (days_since_start // 7) + 1))
+            elif now.year == 2025 and now.month <= 2:
+                # Playoffs/offseason from 2024 season
+                return 18
             elif now.year == 2024 and now.month >= 9:
-                first_thursday = 1 + (3 - datetime(2024, 9, 1).weekday()) % 7
-                season_start = datetime(2024, 9, first_thursday)
-                
+                # 2024 season (for historical reference)
+                season_start = datetime(2024, 9, 5)
                 if now < season_start:
                     return 1
-                
                 days_since_start = (now - season_start).days
-                week = min(18, max(1, (days_since_start // 7) + 1))
-                return week
+                return min(18, max(1, (days_since_start // 7) + 1))
             
-            # Default for any other case
-            return 1
+            return 3  # Safe default for current time of year
             
-        except Exception as e:
-            return 1
+        except Exception:
+            return 3  # Safe fallback
+    
+    # =============================================================================
+    # GAME CLOCK & PROJECTION CALCULATIONS
+    # =============================================================================
     
     def _get_nfl_game_clocks(self):
         """Get live game clock data from NFL API"""
@@ -163,10 +171,16 @@ class FantasyTracker:
     def _calculate_minutes_played(self, clock, period, status):
         """Calculate how many minutes have been played in the game"""
         try:
-            if status.lower() in ['status_final', 'final', 'finished']:
+            
+            # More comprehensive status checking
+            status_lower = status.lower()
+            
+            # Game is finished
+            if any(word in status_lower for word in ['final', 'finished', 'end']):
                 return 60  # Game is over
             
-            if status.lower() in ['status_scheduled', 'scheduled', 'pre']:
+            # Game hasn't started
+            if any(word in status_lower for word in ['scheduled', 'pre', 'upcoming']):
                 return 0  # Game hasn't started
             
             # Parse clock (format like "12:34" or "0:00")
@@ -211,6 +225,10 @@ class FantasyTracker:
             
         except Exception as e:
             return pre_game_projection
+    
+    # =============================================================================
+    # LIVE SCORING & TEAM DATA
+    # =============================================================================
     
     def _get_live_scores(self):
         """Fetch current live scores and player info"""
@@ -322,22 +340,122 @@ class FantasyTracker:
         except Exception as e:
             return []
     
+    # =============================================================================
+    # BACKGROUND UPDATES & SCHEDULING
+    # =============================================================================
+    
     def _update_scores(self):
-        """Background function to update scores every 90 seconds"""
+        """Background function to update scores with smart timing and error handling"""
+        consecutive_failures = 0
+        
         while True:
             try:
                 self.live_scores = self._get_live_scores()
                 self.last_update = datetime.now()
+                consecutive_failures = 0  # Reset on success
+                self.api_error = None  # Clear any previous errors
                 
             except Exception as e:
-                pass
+                consecutive_failures += 1
+                error_msg = str(e)
                 
-            time.sleep(90)  # Update every 90 seconds
+                # Set user-visible error message
+                if "429" in error_msg or "rate" in error_msg.lower():
+                    self.api_error = "⚠️ API rate limited - updates temporarily slower"
+                elif "timeout" in error_msg.lower():
+                    self.api_error = "⚠️ API timeout - retrying..."
+                elif consecutive_failures > 3:
+                    self.api_error = f"⚠️ Connection issues - trying again... ({consecutive_failures} failures)"
+                else:
+                    self.api_error = None
+            
+            # Smart timing: check if there are actually games today (cached)
+            now = datetime.now()
+            has_games_today = self._check_if_games_today_cached()
+            is_prime_time = 12 <= now.hour <= 23  # 12 PM to 11 PM
+            
+            # Adaptive sleep based on failures and game activity
+            if consecutive_failures > 0:
+                # Exponential backoff on failures
+                sleep_time = min(600, 60 * (2 ** min(consecutive_failures, 4)))
+            elif has_games_today and is_prime_time:
+                sleep_time = 120  # 2 minutes during active game days
+            elif has_games_today:
+                sleep_time = 300  # 5 minutes on game days but off hours
+            else:
+                sleep_time = 600  # 10 minutes when no games
+                
+            time.sleep(sleep_time)
+    
+    def _check_if_games_today_cached(self):
+        """Check if there are games today, but cache the result for the entire day"""
+        now = datetime.now()
+        today = now.date()
+        
+        # Only check once per day (or on first run)
+        if self.games_check_date != today:
+            self.games_today_cache = self._check_if_games_today_or_tonight()
+            self.games_check_date = today
+            
+        return self.games_today_cache
+    
+    def _check_if_games_today_or_tonight(self):
+        """Check if there are NFL games today OR late night games from yesterday"""
+        try:
+            response = requests.get('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
+            if response.status_code == 200:
+                data = response.json()
+                games = data.get('events', [])
+                
+                now = datetime.now()
+                today = now.date()
+                
+                for game in games:
+                    # Check if game is today
+                    game_date_str = game.get('date', '')
+                    if game_date_str:
+                        try:
+                            game_datetime = datetime.fromisoformat(game_date_str.replace('Z', '+00:00'))
+                            game_date = game_datetime.date()
+                            
+                            # Game is today
+                            if game_date == today:
+                                return True
+                            
+                            # OR: Game was yesterday but might still be going 
+                            # (like Monday Night Football ending after midnight)
+                            yesterday = today - timedelta(days=1)
+                            if game_date == yesterday:
+                                # Check if game status suggests it might still be active
+                                status = game.get('status', {})
+                                game_status = status.get('type', {}).get('name', '').lower()
+                                game_state = status.get('type', {}).get('state', '').lower()
+                                
+                                
+                                # If game is in progress or recently finished, consider it "active"
+                                # Using both 'name' and 'state' fields for better detection
+                                active_statuses = ['in', 'halftime', 'end of period', 'delayed', 'in progress']
+                                active_states = ['in', 'live']
+                                
+                                if game_status in active_statuses or game_state in active_states:
+                                    return True
+                                    
+                        except:
+                            pass
+                            
+                return False
+        except:
+            # If we can't check, assume there might be games (safer)
+            return True
     
     def _start_score_updates(self):
         """Start the background score update thread"""
         thread = threading.Thread(target=self._update_scores, daemon=True)
         thread.start()
+    
+    # =============================================================================
+    # FLASK WEB ROUTES & UI
+    # =============================================================================
     
     def _setup_routes(self):
         """Set up Flask web routes"""
@@ -405,6 +523,16 @@ class FantasyTracker:
                 .last-update {
                     font-size: 0.9em;
                     color: #888;
+                }
+                
+                .api-error {
+                    font-size: 0.9em;
+                    color: #dc3545;
+                    background: #f8d7da;
+                    border: 1px solid #f5c6cb;
+                    border-radius: 4px;
+                    padding: 8px 12px;
+                    margin-top: 8px;
                 }
                 
                 .container {
@@ -816,6 +944,9 @@ class FantasyTracker:
                 {% if last_update %}
                 <div class="last-update">Last updated: {{ last_update.strftime('%I:%M:%S %p') }}</div>
                 {% endif %}
+                {% if api_error %}
+                <div class="api-error">{{ api_error }}</div>
+                {% endif %}
             </div>
             
             <div class="container">
@@ -962,8 +1093,13 @@ class FantasyTracker:
             template,
             scores=self.live_scores,
             last_update=self.last_update,
-            week=self.current_week
+            week=self.current_week,
+            api_error=self.api_error
         )
+    
+    # =============================================================================
+    # SERVER STARTUP
+    # =============================================================================
     
     def run(self, host="0.0.0.0", port=None, debug=False):
         """Start the web server"""

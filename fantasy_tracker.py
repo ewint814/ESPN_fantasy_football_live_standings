@@ -65,17 +65,8 @@ class FantasyTracker:
             espn_s2 = os.getenv('ESPN_S2')
             swid = os.getenv('ESPN_SWID')
             
-            print(f"DEBUG: Checking environment variables...")
-            print(f"DEBUG: League ID exists: {bool(league_id)}")
-            print(f"DEBUG: S2 exists: {bool(espn_s2)}")
-            print(f"DEBUG: SWID exists: {bool(swid)}")
-            
             if not all([league_id, espn_s2, swid]):
-                missing = []
-                if not league_id: missing.append("ESPN_LEAGUE_ID")
-                if not espn_s2: missing.append("ESPN_S2") 
-                if not swid: missing.append("ESPN_SWID")
-                raise ValueError(f"Missing environment variables: {', '.join(missing)}")
+                raise ValueError("Missing required environment variables: ESPN_LEAGUE_ID, ESPN_S2, ESPN_SWID")
             
             self.league = League(
                 league_id=int(league_id),
@@ -88,7 +79,6 @@ class FantasyTracker:
             teams = self.league.teams
             return True
         except Exception as e:
-            print(f"ERROR: ESPN connection failed: {str(e)}")
             self.league = None
             return False
     
@@ -348,7 +338,6 @@ class FantasyTracker:
             return teams_data
             
         except Exception as e:
-            print(f"ERROR: Get live scores failed: {str(e)}")
             return []
     
     # =============================================================================

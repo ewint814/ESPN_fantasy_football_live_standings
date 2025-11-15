@@ -9,472 +9,23 @@ A live scoring tracker for ESPN Fantasy Football that shows:
 - Real-time updates every 90 seconds
 """
 
-import os
 import logging
-import requests
-from datetime import datetime, timedelta
-from flask import Flask, render_template_string, jsonify
+import os
 import threading
 import time
-from espn_api.football import League
-from dotenv import load_dotenv
+from datetime import datetime
+from typing import Optional
 
-# Load environment variables
-load_dotenv()
+from flask import Flask, jsonify, render_template_string
+
+from tracker import ScoreFetcher
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-class FantasyTracker:
-    # =============================================================================
-    # INITIALIZATION & SETUP
-    # =============================================================================
-    
-    def __init__(self):
-        self.app = Flask(__name__)
-        self.league = None
-        self.live_scores = []
-        self.last_update = None
-        self.current_week = self._get_current_week()
-        self.game_clocks = {}  # Cache for NFL game clock data
-        self.api_error = None  # Track API errors for user display
-        self.games_today_cache = None  # Cache if there are games today
-        self.games_check_date = None  # What date we last checked for games
-        
-        # Initialize ESPN connection
-        self._connect_to_espn()
-        
-        # Set up web routes
-        self._setup_routes()
-        
-        # Start background score updates
-        self._start_score_updates()
-    
-    # =============================================================================
-    # ESPN API CONNECTION & DATA FETCHING
-    # =============================================================================
-    
-    def _connect_to_espn(self):
-        """Connect to ESPN Fantasy Football API"""
-        try:
-            league_id = os.getenv('ESPN_LEAGUE_ID')
-            espn_s2 = os.getenv('ESPN_S2')
-            swid = os.getenv('ESPN_SWID')
-            
-            if not all([league_id, espn_s2, swid]):
-                raise ValueError("Missing required environment variables: ESPN_LEAGUE_ID, ESPN_S2, ESPN_SWID")
-            
-            self.league = League(
-                league_id=int(league_id),
-                year=2025,
-                espn_s2=espn_s2,
-                swid=swid
-            )
-            
-            # Test the connection
-            teams = self.league.teams
-            return True
-        except Exception as e:
-            self.league = None
-            return False
-    
-    def _get_current_week(self):
-        """Get current NFL week using ESPN's scoreboard API."""
-        try:
-            # First try ESPN's NFL scoreboard API - most reliable
-            response = requests.get('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
-            if response.status_code == 200:
-                data = response.json()
-                if 'week' in data and 'number' in data['week']:
-                    return data['week']['number']
-            
-            # Fallback: try to get it from the league object
-            if self.league and hasattr(self.league, 'current_week'):
-                return self.league.current_week
-            
-            # Last resort: simple calculation for current season (2025)
-            now = datetime.now()
-            if now.year == 2025 and now.month >= 9:
-                # 2025 season starts around September 4th
-                season_start = datetime(2025, 9, 4)
-                if now < season_start:
-                    return 1
-                days_since_start = (now - season_start).days
-                return min(18, max(1, (days_since_start // 7) + 1))
-            elif now.year == 2025 and now.month <= 2:
-                # Playoffs/offseason from 2024 season
-                return 18
-            elif now.year == 2024 and now.month >= 9:
-                # 2024 season (for historical reference)
-                season_start = datetime(2024, 9, 5)
-                if now < season_start:
-                    return 1
-                days_since_start = (now - season_start).days
-                return min(18, max(1, (days_since_start // 7) + 1))
-            
-            return 3  # Safe default for current time of year
-            
-        except Exception:
-            return 3  # Safe fallback
-    
-    # =============================================================================
-    # GAME CLOCK & PROJECTION CALCULATIONS
-    # =============================================================================
-    
-    def _get_nfl_game_clocks(self):
-        """Get live game clock data from NFL API"""
-        try:
-            nfl_url = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
-            response = requests.get(nfl_url)
-            
-            if response.status_code == 200:
-                data = response.json()
-                games = data.get('events', [])
-                
-                game_clocks = {}
-                
-                for game in games:
-                    # Get team abbreviations
-                    competitors = game.get('competitions', [{}])[0].get('competitors', [])
-                    if len(competitors) >= 2:
-                        team1 = competitors[0].get('team', {}).get('abbreviation', '')
-                        team2 = competitors[1].get('team', {}).get('abbreviation', '')
-                        
-                        status = game.get('status', {})
-                        clock = status.get('displayClock', '0:00')
-                        period = status.get('period', 1)
-                        game_status = status.get('type', {}).get('name', 'unknown')
-                        
-                        # Calculate minutes played
-                        minutes_played = self._calculate_minutes_played(clock, period, game_status)
-                        
-                        # Store for both teams
-                        for team in [team1, team2]:
-                            if team:
-                                game_clocks[team] = {
-                                    'clock': clock,
-                                    'period': period,
-                                    'status': game_status,
-                                    'minutes_played': minutes_played,
-                                    'game_progress': min(minutes_played / 60.0, 1.0)
-                                }
-                
-                return game_clocks
-            
-        except Exception as e:
-            return {}
-    
-    def _calculate_minutes_played(self, clock, period, status):
-        """Calculate how many minutes have been played in the game"""
-        try:
-            
-            # More comprehensive status checking
-            status_lower = status.lower()
-            
-            # Game is finished
-            if any(word in status_lower for word in ['final', 'finished', 'end']):
-                return 60  # Game is over
-            
-            # Game hasn't started
-            if any(word in status_lower for word in ['scheduled', 'pre', 'upcoming']):
-                return 0  # Game hasn't started
-            
-            # Parse clock (format like "12:34" or "0:00")
-            if ':' in clock:
-                minutes, seconds = clock.split(':')
-                remaining_in_quarter = int(minutes) + int(seconds) / 60.0
-            else:
-                remaining_in_quarter = 0
-            
-            # Each quarter is 15 minutes
-            completed_quarters = max(0, period - 1)
-            minutes_in_current_quarter = 15 - remaining_in_quarter
-            
-            total_minutes = (completed_quarters * 15) + minutes_in_current_quarter
-            
-            # Cap at 60 minutes (regulation)
-            return min(total_minutes, 60)
-            
-        except Exception as e:
-            return 30  # Default to halfway through game
-    
-    def _calculate_live_projection(self, pre_game_projection, current_points, minutes_played):
-        """Calculate live projection based on scoring rate"""
-        try:
-            if minutes_played >= 60:
-                # Game is finished
-                return current_points
-            
-            if minutes_played <= 5:
-                # Game just started, use pre-game projection
-                return pre_game_projection
-            
-            # Calculate current scoring rate (points per minute)
-            scoring_rate = current_points / minutes_played
-            
-            # Project for full 60 minutes
-            projected_final = scoring_rate * 60
-            
-            # Use the higher of projection-based or rate-based
-            # This prevents projections from dropping too much if a player has a slow start
-            return max(projected_final, pre_game_projection * 0.5)
-            
-        except Exception as e:
-            return pre_game_projection
-    
-    # =============================================================================
-    # LIVE SCORING & TEAM DATA
-    # =============================================================================
-    
-    def _get_live_scores(self):
-        """Fetch current live scores and player info"""
-        if not self.league:
-            return []
-        
-        try:
-            # Get live game clocks for projections
-            self.game_clocks = self._get_nfl_game_clocks()
-            
-            box_scores = self.league.box_scores(week=self.current_week)
-            teams_data = []
-            
-            for matchup in box_scores:
-                # Process both home and away teams
-                for team, lineup, score in [
-                    (matchup.home_team, matchup.home_lineup, matchup.home_score),
-                    (matchup.away_team, matchup.away_lineup, matchup.away_score)
-                ]:
-                    # Get team name safely
-                    team_name = getattr(team, 'team_name', 'Unknown Team')
-                    
-                    # Analyze player statuses and calculate live projections
-                    currently_playing = []
-                    yet_to_play = []
-                    finished_playing = []
-                    total_starters = 0
-                    projected_total = 0.0
-                    
-                    for player in lineup:
-                        # Skip bench players
-                        if player.slot_position == "BE":
-                            continue
-                            
-                        total_starters += 1
-                        player_name = getattr(player, 'name', 'Unknown')
-                        player_points = getattr(player, 'points', 0)
-                        pre_game_projection = getattr(player, 'projected_points', 0)
-                        pro_team = getattr(player, 'proTeam', '')
-                        
-                        # Get game clock data for this player's team
-                        clock_data = self.game_clocks.get(pro_team, {})
-                        minutes_played = clock_data.get('minutes_played', 30)  # Default to halfway
-                        
-                        # Calculate live projection
-                        live_projection = self._calculate_live_projection(
-                            pre_game_projection, player_points, minutes_played
-                        )
-                        
-                        # Enhanced player status detection using game_played
-                        game_played = getattr(player, 'game_played', None)
-                        
-                        if game_played == 0:
-                            # Game hasn't started yet
-                            yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
-                            projected_total += pre_game_projection
-                        elif game_played == 100:
-                            # Game is finished
-                            finished_playing.append(f"{player_name} ({player_points:.1f})")
-                            projected_total += player_points
-                        elif game_played == 1:
-                            # Game is in progress
-                            currently_playing.append(f"{player_name} ({player_points:.1f})")
-                            projected_total += live_projection
-                        elif game_played == 2:
-                            # Alternative finished status
-                            finished_playing.append(f"{player_name} ({player_points:.1f})")
-                            projected_total += player_points
-                        else:
-                            # Fallback for unclear status - assume not played yet
-                            yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
-                            projected_total += pre_game_projection
-                    
-                    
-                    teams_data.append({
-                        'team_name': team_name,
-                        'live_score': float(score) if score else 0.0,
-                        'projected_score': projected_total,
-                        'currently_playing': currently_playing,
-                        'yet_to_play': yet_to_play,
-                        'finished_playing': finished_playing,
-                        'players_playing_count': len(currently_playing),
-                        'players_remaining_count': len(yet_to_play),
-                        'players_finished_count': len(finished_playing),
-                        'total_starters': total_starters
-                    })
-            
-            # Sort by live score (highest first) for current rankings
-            teams_data.sort(key=lambda x: x['live_score'], reverse=True)
-            
-            # Add current ranking and top 6 status
-            for i, team in enumerate(teams_data):
-                team['rank'] = i + 1
-                team['is_current_top6'] = i < 6  # Currently in top 6
-            
-            # Sort by projected score to determine projected top 6
-            teams_sorted_by_projection = sorted(teams_data, key=lambda x: x['projected_score'], reverse=True)
-            
-            # Add projected top 6 status
-            for i, team in enumerate(teams_sorted_by_projection):
-                team['projected_rank'] = i + 1
-                team['is_projected_top6'] = i < 6  # Projected to be in top 6
-            
-            # Sort back by live score for display
-            teams_data.sort(key=lambda x: x['live_score'], reverse=True)
-            
-            return teams_data
-            
-        except Exception as e:
-            return []
-    
-    # =============================================================================
-    # BACKGROUND UPDATES & SCHEDULING
-    # =============================================================================
-    
-    def _update_scores(self):
-        """Background function to update scores with smart timing and error handling"""
-        consecutive_failures = 0
-        
-        while True:
-            try:
-                self.live_scores = self._get_live_scores()
-                self.last_update = datetime.now()
-                consecutive_failures = 0  # Reset on success
-                self.api_error = None  # Clear any previous errors
-                
-            except Exception as e:
-                consecutive_failures += 1
-                error_msg = str(e)
-                
-                # Set user-visible error message
-                if "429" in error_msg or "rate" in error_msg.lower():
-                    self.api_error = "⚠️ API rate limited - updates temporarily slower"
-                elif "timeout" in error_msg.lower():
-                    self.api_error = "⚠️ API timeout - retrying..."
-                elif consecutive_failures > 3:
-                    self.api_error = f"⚠️ Connection issues - trying again... ({consecutive_failures} failures)"
-                else:
-                    self.api_error = None
-            
-            # Smart timing: check if there are actually games today (cached)
-            now = datetime.now()
-            has_games_today = self._check_if_games_today_cached()
-            is_prime_time = 12 <= now.hour <= 23  # 12 PM to 11 PM
-            
-            # Adaptive sleep based on failures and game activity
-            if consecutive_failures > 0:
-                # Exponential backoff on failures
-                sleep_time = min(600, 60 * (2 ** min(consecutive_failures, 4)))
-            elif has_games_today and is_prime_time:
-                sleep_time = 120  # 2 minutes during active game days
-            elif has_games_today:
-                sleep_time = 300  # 5 minutes on game days but off hours
-            else:
-                sleep_time = 600  # 10 minutes when no games
-                
-            time.sleep(sleep_time)
-    
-    def _check_if_games_today_cached(self):
-        """Check if there are games today, but cache the result for the entire day"""
-        now = datetime.now()
-        today = now.date()
-        
-        # Only check once per day (or on first run)
-        if self.games_check_date != today:
-            self.games_today_cache = self._check_if_games_today_or_tonight()
-            self.games_check_date = today
-            
-        return self.games_today_cache
-    
-    def _check_if_games_today_or_tonight(self):
-        """Check if there are NFL games today OR late night games from yesterday"""
-        try:
-            response = requests.get('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard')
-            if response.status_code == 200:
-                data = response.json()
-                games = data.get('events', [])
-                
-                now = datetime.now()
-                today = now.date()
-                
-                for game in games:
-                    # Check if game is today
-                    game_date_str = game.get('date', '')
-                    if game_date_str:
-                        try:
-                            game_datetime = datetime.fromisoformat(game_date_str.replace('Z', '+00:00'))
-                            game_date = game_datetime.date()
-                            
-                            # Game is today
-                            if game_date == today:
-                                return True
-                            
-                            # OR: Game was yesterday but might still be going 
-                            # (like Monday Night Football ending after midnight)
-                            yesterday = today - timedelta(days=1)
-                            if game_date == yesterday:
-                                # Check if game status suggests it might still be active
-                                status = game.get('status', {})
-                                game_status = status.get('type', {}).get('name', '').lower()
-                                game_state = status.get('type', {}).get('state', '').lower()
-                                
-                                
-                                # If game is in progress or recently finished, consider it "active"
-                                # Using both 'name' and 'state' fields for better detection
-                                active_statuses = ['in', 'halftime', 'end of period', 'delayed', 'in progress']
-                                active_states = ['in', 'live']
-                                
-                                if game_status in active_statuses or game_state in active_states:
-                                    return True
-                                    
-                        except:
-                            pass
-                            
-                return False
-        except:
-            # If we can't check, assume there might be games (safer)
-            return True
-    
-    def _start_score_updates(self):
-        """Start the background score update thread"""
-        thread = threading.Thread(target=self._update_scores, daemon=True)
-        thread.start()
-    
-    # =============================================================================
-    # FLASK WEB ROUTES & UI
-    # =============================================================================
-    
-    def _setup_routes(self):
-        """Set up Flask web routes"""
-        
-        @self.app.route('/')
-        def dashboard():
-            return self._render_dashboard()
-        
-        @self.app.route('/api/scores')
-        def api_scores():
-            return jsonify({
-                'scores': self.live_scores,
-                'last_update': self.last_update.isoformat() if self.last_update else None,
-                'week': self.current_week
-            })
-    
-    def _render_dashboard(self):
-        """Render the main dashboard HTML"""
-        template = """
+
+DASHBOARD_TEMPLATE = """
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -1089,24 +640,110 @@ class FantasyTracker:
         </html>
         """
         
-        return render_template_string(
-            template,
-            scores=self.live_scores,
-            last_update=self.last_update,
-            week=self.current_week,
-            api_error=self.api_error
-        )
-    
-    # =============================================================================
-    # SERVER STARTUP
-    # =============================================================================
-    
-    def run(self, host="0.0.0.0", port=None, debug=False):
-        """Start the web server"""
+"""
+
+
+class FantasyTracker:
+    """Flask wrapper around the shared ScoreFetcher service."""
+
+    def __init__(self):
+        self.app = Flask(__name__)
+        self.fetcher = ScoreFetcher()
+        self.live_scores = []
+        self.last_update: Optional[datetime] = None
+        self.current_week = self.fetcher.current_week
+        self.api_error: Optional[str] = None
+
+        self._setup_routes()
+        self._start_score_updates()
+
+    # ------------------------------------------------------------------ #
+    # Background refresh
+    # ------------------------------------------------------------------ #
+    def _start_score_updates(self):
+        thread = threading.Thread(target=self._update_scores, daemon=True)
+        thread.start()
+
+    def _update_scores(self):
+        consecutive_failures = 0
+
+        while True:
+            try:
+                snapshot = self.fetcher.build_snapshot()
+                self.live_scores = snapshot.get("scores", [])
+                iso_timestamp = snapshot.get("last_update")
+                self.current_week = snapshot.get("week", self.current_week)
+                self.api_error = snapshot.get("api_error")
+
+                if iso_timestamp:
+                    self.last_update = datetime.fromisoformat(iso_timestamp)
+                else:
+                    self.last_update = datetime.utcnow()
+
+                consecutive_failures = 0
+            except Exception as exc:
+                logger.warning("Score refresh failed: %s", exc)
+                consecutive_failures += 1
+                if "429" in str(exc) or "rate" in str(exc).lower():
+                    self.api_error = "⚠️ ESPN rate limit hit, slowing down updates."
+                elif "timeout" in str(exc).lower():
+                    self.api_error = "⚠️ ESPN timeout. Retrying shortly."
+                elif consecutive_failures > 3:
+                    self.api_error = f"⚠️ Connection issues ({consecutive_failures} failures)."
+                elif not self.api_error:
+                    self.api_error = "⚠️ Temporary issue fetching scores."
+
+            sleep_time = self._determine_sleep_interval(consecutive_failures)
+            time.sleep(sleep_time)
+
+    def _determine_sleep_interval(self, failures: int) -> int:
+        if failures > 0:
+            return min(600, 60 * (2 ** min(failures, 4)))
+
+        try:
+            has_games_today = self.fetcher.has_games_today()
+        except Exception:
+            has_games_today = False
+
+        now = datetime.now()
+        is_prime_time = 12 <= now.hour <= 23
+
+        if has_games_today and is_prime_time:
+            return 90
+        if has_games_today:
+            return 300
+        return 600
+
+    # ------------------------------------------------------------------ #
+    # Routes
+    # ------------------------------------------------------------------ #
+    def _setup_routes(self):
+        @self.app.route("/")
+        def dashboard():
+            return render_template_string(
+                DASHBOARD_TEMPLATE,
+                scores=self.live_scores,
+                last_update=self.last_update,
+                week=self.current_week,
+                api_error=self.api_error,
+            )
+
+        @self.app.route("/api/scores")
+        def api_scores():
+            return jsonify(
+                {
+                    "scores": self.live_scores,
+                    "last_update": self.last_update.isoformat() if self.last_update else None,
+                    "week": self.current_week,
+                    "api_error": self.api_error,
+                }
+            )
+
+    def run(self, host="0.0.0.0", port: Optional[int] = None, debug: bool = False):
         if port is None:
-            port = int(os.getenv('PORT', 5000))
-        
+            port = int(os.getenv("PORT", 5000))
         self.app.run(host=host, port=port, debug=debug)
+
 
 if __name__ == "__main__":
     tracker = FantasyTracker()

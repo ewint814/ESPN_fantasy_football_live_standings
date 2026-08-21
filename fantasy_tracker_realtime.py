@@ -16,6 +16,7 @@ import time
 import json
 from espn_api.football import League
 from dotenv import load_dotenv
+import pytz
 
 # Import local modules
 from config import Config
@@ -49,6 +50,9 @@ class FantasyTracker:
         self.api_error: Optional[str] = None
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
+        
+        # Timezone for display
+        self.eastern = pytz.timezone('America/New_York')
         
         # Real-time update tracking
         self.data_changed: bool = False
@@ -308,7 +312,7 @@ class FantasyTracker:
             try:
                 old_scores = json.dumps(self.live_scores, sort_keys=True)
                 self.live_scores = self._get_live_scores()
-                self.last_update = datetime.now()
+                self.last_update = datetime.now(pytz.UTC)  # Store as UTC
                 new_scores = json.dumps(self.live_scores, sort_keys=True)
                 
                 # Check if data actually changed
@@ -819,7 +823,7 @@ class FantasyTracker:
                 </div>
                 <div class="week-info">{{ nfl_year }} Season • Week {{ week }}</div>
                 {% if last_update %}
-                <div class="last-update">Last updated: {{ last_update.strftime('%I:%M:%S %p') }}</div>
+                <div class="last-update">Last updated: {{ last_update.astimezone(eastern).strftime('%I:%M:%S %p ET') }}</div>
                 {% endif %}
                 {% if api_error %}
                 <div class="api-error">{{ api_error }}</div>
@@ -970,7 +974,8 @@ class FantasyTracker:
             last_update=self.last_update,
             week=self.current_week,
             nfl_year=self.nfl_year,
-            api_error=self.api_error
+            api_error=self.api_error,
+            eastern=self.eastern
         )
     
     def run(self, host: Optional[str] = None, port: Optional[int] = None, debug: Optional[bool] = None) -> None:

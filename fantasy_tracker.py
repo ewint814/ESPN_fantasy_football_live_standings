@@ -101,6 +101,7 @@ class FantasyTracker:
             is_valid, error_msg = self.config.validate()
             if not is_valid:
                 logger.error(f"❌ {error_msg}")
+                self.api_error = f"❌ Configuration Error: {error_msg}\n\n💡 Fix: Set ESPN_LEAGUE_ID, ESPN_S2, and ESPN_SWID in Render Dashboard → Environment"
                 return False
             
             logger.info(f"🔌 Connecting to ESPN league {self.config.espn_league_id} for {self.nfl_year} season...")
@@ -120,11 +121,23 @@ class FantasyTracker:
             
         except ValueError as e:
             logger.error(f"❌ Invalid configuration: {e}")
+            self.api_error = f"❌ Invalid Configuration: {str(e)}\n\n💡 Fix: Check your League ID format in Render environment variables"
             self.league = None
             return False
         except Exception as e:
+            error_str = str(e).lower()
             logger.error(f"❌ ESPN connection failed: {e}")
-            logger.error("💡 Check your ESPN_S2 and ESPN_SWID cookies - they may have expired")
+            
+            # Provide specific, actionable error messages
+            if "401" in error_str or "unauthorized" in error_str or "authentication" in error_str:
+                self.api_error = "❌ ESPN Authentication Failed\n\n💡 Fix: Your ESPN cookies (ESPN_S2 and ESPN_SWID) have expired.\n\n1. Go to ESPN.com and log in\n2. Press F12 → Application → Cookies → espn.com\n3. Copy fresh ESPN_S2 and ESPN_SWID values\n4. Update in Render Dashboard → Environment"
+            elif "404" in error_str or "not found" in error_str:
+                self.api_error = f"❌ League Not Found\n\n💡 Fix: League ID '{self.config.espn_league_id}' doesn't exist or you don't have access.\n\nCheck your ESPN_LEAGUE_ID in Render environment variables."
+            elif "timeout" in error_str or "timed out" in error_str:
+                self.api_error = "❌ ESPN API Timeout\n\n💡 ESPN's servers are slow or unreachable. Try again in a few minutes."
+            else:
+                self.api_error = f"❌ ESPN Connection Failed: {str(e)}\n\n💡 Fix: Check your ESPN credentials in Render Dashboard → Environment.\n\nMake sure ESPN_S2 and ESPN_SWID cookies are fresh (they expire every few weeks)."
+            
             self.league = None
             return False
     
@@ -1085,8 +1098,22 @@ class FantasyTracker:
                 </div>
                 {% else %}
                 <div class="loading">
+                    {% if api_error %}
+                    <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 24px; max-width: 600px; margin: 0 auto; text-align: left;">
+                        <div style="white-space: pre-wrap; color: #856404; line-height: 1.8; font-size: 0.95em;">{{ api_error }}</div>
+                        <hr style="margin: 20px 0; border: none; border-top: 1px solid #ffc107;">
+                        <div style="color: #666; font-size: 0.9em;">
+                            <strong>Quick Links:</strong><br>
+                            • <a href="https://dashboard.render.com" target="_blank" style="color: #007bff;">Render Dashboard</a><br>
+                            • <a href="https://fantasy.espn.com" target="_blank" style="color: #007bff;">ESPN Fantasy Football</a><br>
+                            • <a href="/health" style="color: #007bff;">Health Check</a>
+                        </div>
+                    </div>
+                    {% else %}
                     <p>🔄 Loading live scores...</p>
                     <p>Connecting to ESPN Fantasy API...</p>
+                    <p style="margin-top: 16px; color: #999; font-size: 0.9em;">This usually takes 5-10 seconds...</p>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>

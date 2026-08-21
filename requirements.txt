@@ -3,3 +3,4 @@ espn-api==0.45.1
 requests==2.32.3
 python-dotenv==1.0.1
 gunicorn==22.0.0
+pytz==2024.1

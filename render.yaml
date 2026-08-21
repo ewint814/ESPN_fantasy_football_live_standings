@@ -3,7 +3,7 @@ services:
     name: fantasy-football-tracker
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python fantasy_tracker.py
+    startCommand: python fantasy_tracker_realtime.py
     envVars:
       - key: ESPN_LEAGUE_ID
         sync: false  # Set in Render dashboard

@@ -4,7 +4,8 @@ A real-time fantasy football score tracker that displays live scores, player sta
 
 ## Features
 
-- ✅ **Real-time score updates** with WebSocket support
+- ✅ **Real-time updates every 10 seconds** during games ⚡
+- ✅ **Server-Sent Events** for instant push notifications
 - ✅ **Player status tracking** (currently playing, yet to play, finished)
 - ✅ **Beautiful responsive UI** with modern design
 - ✅ **Auto-detecting current NFL week**
@@ -13,6 +14,7 @@ A real-time fantasy football score tracker that displays live scores, player sta
 - ✅ **Team rankings** sorted by live scores
 - ✅ **Live projections** based on current performance
 - ✅ **Movement tracking** to see rank changes
+- ✅ **Live connection indicator** with pulsing dot
 
 ## Local Development
 

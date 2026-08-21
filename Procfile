@@ -1,4 +1,1 @@
-web: python fantasy_tracker.py
-
-
-
+web: python fantasy_tracker_realtime.py

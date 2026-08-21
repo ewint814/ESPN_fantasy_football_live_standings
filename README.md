@@ -4,7 +4,8 @@ A real-time fantasy football score tracker that displays live scores, player sta
 
 ## Features
 
-- ✅ **Real-time score updates** with WebSocket support
+- ✅ **Real-time updates every 10 seconds** during games ⚡
+- ✅ **Server-Sent Events** for instant push notifications
 - ✅ **Player status tracking** (currently playing, yet to play, finished)
 - ✅ **Beautiful responsive UI** with modern design
 - ✅ **Auto-detecting current NFL week**
@@ -13,6 +14,7 @@ A real-time fantasy football score tracker that displays live scores, player sta
 - ✅ **Team rankings** sorted by live scores
 - ✅ **Live projections** based on current performance
 - ✅ **Movement tracking** to see rank changes
+- ✅ **Live connection indicator** with pulsing dot
 
 ## Local Development
 
@@ -34,7 +36,7 @@ A real-time fantasy football score tracker that displays live scores, player sta
 4. Copy `.env.example` to `.env` and fill in your ESPN credentials
 5. Run the application:
    ```bash
-   python fantasy_tracker.py
+   python fantasy_tracker_realtime.py
    ```
 6. Open http://localhost:5000 in your browser
 
@@ -58,7 +60,7 @@ To get your ESPN credentials:
 4. Connect your GitHub repository
 5. Use these settings:
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python fantasy_tracker.py`
+   - **Start Command**: `python fantasy_tracker_realtime.py`
 6. Add environment variables:
    - `ESPN_LEAGUE_ID`: Your league ID
    - `ESPN_S2`: Your ESPN S2 cookie
@@ -78,6 +80,9 @@ PORT=5000
 ## File Structure
 ```
 ├── fantasy_tracker.py           # Main application
+├── fantasy_tracker_realtime.py  # Real-time version (recommended)
+├── config.py                    # Configuration management
+├── nfl_utils.py                 # NFL season utilities
 ├── requirements.txt             # Python dependencies
 ├── render.yaml                  # Render deployment config
 ├── Procfile                     # Process file for deployment
@@ -91,6 +96,7 @@ PORT=5000
 - `GET /` - Main dashboard
 - `GET /api/scores` - JSON API for scores data
 - `GET /health` - Health check endpoint
+- `GET /stream` - Server-Sent Events stream (real-time updates)
 
 ## Troubleshooting
 
@@ -109,6 +115,3 @@ Feel free to submit issues and enhancement requests!
 ## License
 
 MIT License - feel free to use and modify as needed.
-
-
-

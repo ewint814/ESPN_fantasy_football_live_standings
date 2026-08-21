@@ -78,7 +78,7 @@ class FantasyTracker:
         self._start_score_updates()
     
     def _connect_to_espn(self) -> bool:
-        """Connect to ESPN Fantasy Football API."""
+        """Connect to ESPN Fantasy Football API with timeout."""
         try:
             is_valid, error_msg = self.config.validate()
             if not is_valid:
@@ -94,6 +94,7 @@ class FantasyTracker:
                 swid=self.config.espn_swid
             )
             
+            # Test connection by fetching teams (this is where it can hang)
             teams = self.league.teams
             logger.info(f"✅ Connected! Found {len(teams)} teams")
             return True
@@ -807,6 +808,35 @@ class FantasyTracker:
                     // In production, you'd update DOM elements directly for smooth transitions
                     location.reload();
                 }
+                
+                // Show error if loading takes too long
+                let loadingStartTime = Date.now();
+                setTimeout(function() {
+                    const loadingDiv = document.querySelector('.loading');
+                    if (loadingDiv && !loadingDiv.querySelector('.timeout-error')) {
+                        const elapsedSeconds = Math.floor((Date.now() - loadingStartTime) / 1000);
+                        if (elapsedSeconds > 15) {
+                            loadingDiv.innerHTML = `
+                                <div class="timeout-error" style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 24px; max-width: 600px; margin: 0 auto; text-align: left;">
+                                    <div style="color: #856404; line-height: 1.8; font-size: 0.95em;">
+                                        <strong>⏱️ Loading is Taking Longer Than Expected</strong><br><br>
+                                        The app has been trying to connect for ${elapsedSeconds} seconds.<br><br>
+                                        <strong>💡 What to try:</strong><br>
+                                        • Refresh the page<br>
+                                        • Check your ESPN credentials in Render Dashboard<br>
+                                        • ESPN servers might be slow - try again in a minute<br>
+                                    </div>
+                                    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ffc107;">
+                                    <div style="text-align: center;">
+                                        <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-size: 1em;">
+                                            🔄 Refresh Page
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                }, 15000);  // Check after 15 seconds
                 
                 // Connect to real-time stream on page load
                 window.addEventListener('DOMContentLoaded', function() {

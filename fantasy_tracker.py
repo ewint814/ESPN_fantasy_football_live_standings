@@ -21,6 +21,7 @@ import threading
 import time
 from espn_api.football import League
 from dotenv import load_dotenv
+import pytz
 
 # Import local modules
 from config import Config
@@ -65,6 +66,9 @@ class FantasyTracker:
         self.api_error: Optional[str] = None
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
+        
+        # Timezone for display
+        self.eastern = pytz.timezone('America/New_York')
         
         logger.info(f"🏈 Initializing Fantasy Tracker for {self.nfl_year} NFL season")
         logger.info(f"📅 Current week: {self.current_week}")
@@ -471,7 +475,7 @@ class FantasyTracker:
         while True:
             try:
                 self.live_scores = self._get_live_scores()
-                self.last_update = datetime.now()
+                self.last_update = datetime.now(pytz.UTC)  # Store as UTC
                 consecutive_failures = 0
                 self.api_error = None
                 
@@ -961,7 +965,7 @@ class FantasyTracker:
                 <h1>🏈 Fantasy Football Live Tracker</h1>
                 <div class="week-info">{{ nfl_year }} Season • Week {{ week }} • Live Scoring</div>
                 {% if last_update %}
-                <div class="last-update">Last updated: {{ last_update.strftime('%I:%M:%S %p') }}</div>
+                <div class="last-update">Last updated: {{ last_update.astimezone(eastern).strftime('%I:%M:%S %p ET') }}</div>
                 {% endif %}
                 {% if api_error %}
                 <div class="api-error">{{ api_error }}</div>
@@ -1127,7 +1131,8 @@ class FantasyTracker:
             last_update=self.last_update,
             week=self.current_week,
             nfl_year=self.nfl_year,
-            api_error=self.api_error
+            api_error=self.api_error,
+            eastern=self.eastern
         )
     
     # =============================================================================

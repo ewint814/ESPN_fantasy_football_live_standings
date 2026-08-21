@@ -16,6 +16,7 @@ import time
 import json
 from espn_api.football import League
 from dotenv import load_dotenv
+import pytz
 
 # Import local modules
 from config import Config
@@ -50,6 +51,9 @@ class FantasyTracker:
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
         
+        # Timezone for display
+        self.eastern = pytz.timezone('America/New_York')
+        
         # Real-time update tracking
         self.data_changed: bool = False
         self.clients: List = []  # Connected SSE clients
@@ -74,7 +78,7 @@ class FantasyTracker:
         self._start_score_updates()
     
     def _connect_to_espn(self) -> bool:
-        """Connect to ESPN Fantasy Football API."""
+        """Connect to ESPN Fantasy Football API with timeout."""
         try:
             is_valid, error_msg = self.config.validate()
             if not is_valid:
@@ -91,6 +95,7 @@ class FantasyTracker:
                 swid=self.config.espn_swid
             )
             
+            # Test connection by fetching teams (this is where it can hang)
             teams = self.league.teams
             logger.info(f"✅ Connected! Found {len(teams)} teams")
             return True
@@ -321,7 +326,7 @@ class FantasyTracker:
             try:
                 old_scores = json.dumps(self.live_scores, sort_keys=True)
                 self.live_scores = self._get_live_scores()
-                self.last_update = datetime.now()
+                self.last_update = datetime.now(pytz.UTC)  # Store as UTC
                 new_scores = json.dumps(self.live_scores, sort_keys=True)
                 
                 # Check if data actually changed
@@ -817,6 +822,35 @@ class FantasyTracker:
                     location.reload();
                 }
                 
+                // Show error if loading takes too long
+                let loadingStartTime = Date.now();
+                setTimeout(function() {
+                    const loadingDiv = document.querySelector('.loading');
+                    if (loadingDiv && !loadingDiv.querySelector('.timeout-error')) {
+                        const elapsedSeconds = Math.floor((Date.now() - loadingStartTime) / 1000);
+                        if (elapsedSeconds > 15) {
+                            loadingDiv.innerHTML = `
+                                <div class="timeout-error" style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 24px; max-width: 600px; margin: 0 auto; text-align: left;">
+                                    <div style="color: #856404; line-height: 1.8; font-size: 0.95em;">
+                                        <strong>⏱️ Loading is Taking Longer Than Expected</strong><br><br>
+                                        The app has been trying to connect for ${elapsedSeconds} seconds.<br><br>
+                                        <strong>💡 What to try:</strong><br>
+                                        • Refresh the page<br>
+                                        • Check your ESPN credentials in Render Dashboard<br>
+                                        • ESPN servers might be slow - try again in a minute<br>
+                                    </div>
+                                    <hr style="margin: 20px 0; border: none; border-top: 1px solid #ffc107;">
+                                    <div style="text-align: center;">
+                                        <button onclick="location.reload()" style="background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-size: 1em;">
+                                            🔄 Refresh Page
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }
+                }, 15000);  // Check after 15 seconds
+                
                 // Connect to real-time stream on page load
                 window.addEventListener('DOMContentLoaded', function() {
                     connectSSE();
@@ -832,7 +866,7 @@ class FantasyTracker:
                 </div>
                 <div class="week-info">{{ nfl_year }} Season • Week {{ week }}</div>
                 {% if last_update %}
-                <div class="last-update">Last updated: {{ last_update.strftime('%I:%M:%S %p') }}</div>
+                <div class="last-update">Last updated: {{ last_update.astimezone(eastern).strftime('%I:%M:%S %p ET') }}</div>
                 {% endif %}
                 {% if api_error %}
                 <div class="api-error">{{ api_error }}</div>
@@ -997,7 +1031,8 @@ class FantasyTracker:
             last_update=self.last_update,
             week=self.current_week,
             nfl_year=self.nfl_year,
-            api_error=self.api_error
+            api_error=self.api_error,
+            eastern=self.eastern
         )
     
     def run(self, host: Optional[str] = None, port: Optional[int] = None, debug: Optional[bool] = None) -> None:

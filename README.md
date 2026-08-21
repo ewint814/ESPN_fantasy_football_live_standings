@@ -80,6 +80,9 @@ PORT=5000
 ## File Structure
 ```
 ├── fantasy_tracker.py           # Main application
+├── fantasy_tracker_realtime.py  # Real-time version (recommended)
+├── config.py                    # Configuration management
+├── nfl_utils.py                 # NFL season utilities
 ├── requirements.txt             # Python dependencies
 ├── render.yaml                  # Render deployment config
 ├── Procfile                     # Process file for deployment
@@ -93,6 +96,7 @@ PORT=5000
 - `GET /` - Main dashboard
 - `GET /api/scores` - JSON API for scores data
 - `GET /health` - Health check endpoint
+- `GET /stream` - Server-Sent Events stream (real-time updates)
 
 ## Troubleshooting
 
@@ -111,6 +115,3 @@ Feel free to submit issues and enhancement requests!
 ## License
 
 MIT License - feel free to use and modify as needed.
-
-
-

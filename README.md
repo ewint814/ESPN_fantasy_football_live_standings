@@ -36,7 +36,7 @@ A real-time fantasy football score tracker that displays live scores, player sta
 4. Copy `.env.example` to `.env` and fill in your ESPN credentials
 5. Run the application:
    ```bash
-   python fantasy_tracker.py
+   python fantasy_tracker_realtime.py
    ```
 6. Open http://localhost:5000 in your browser
 
@@ -60,7 +60,7 @@ To get your ESPN credentials:
 4. Connect your GitHub repository
 5. Use these settings:
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python fantasy_tracker.py`
+   - **Start Command**: `python fantasy_tracker_realtime.py`
 6. Add environment variables:
    - `ESPN_LEAGUE_ID`: Your league ID
    - `ESPN_S2`: Your ESPN S2 cookie

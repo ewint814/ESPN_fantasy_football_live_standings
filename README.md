@@ -1,22 +1,23 @@
-<<<<<<< HEAD
 # 🏈 Fantasy Football Live Scores Tracker
 
 A real-time fantasy football score tracker that displays live scores, player statuses, and team rankings from your ESPN Fantasy Football league.
 
 ## Features
 
-- ✅ **Real-time score updates** every 90 seconds
+- ✅ **Real-time score updates** with WebSocket support
 - ✅ **Player status tracking** (currently playing, yet to play, finished)
 - ✅ **Beautiful responsive UI** with modern design
 - ✅ **Auto-detecting current NFL week**
 - ✅ **Mobile-friendly** interface
-- ✅ **Error handling** and logging
+- ✅ **Comprehensive error handling** and logging
 - ✅ **Team rankings** sorted by live scores
+- ✅ **Live projections** based on current performance
+- ✅ **Movement tracking** to see rank changes
 
 ## Local Development
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.11+
 - ESPN Fantasy Football league access
 
 ### Setup
@@ -30,10 +31,10 @@ A real-time fantasy football score tracker that displays live scores, player sta
    ```bash
    pip install -r requirements.txt
    ```
-4. Copy `env_example.txt` to `.env` and fill in your ESPN credentials
+4. Copy `.env.example` to `.env` and fill in your ESPN credentials
 5. Run the application:
    ```bash
-   python fantasy_football_enhanced.py
+   python fantasy_tracker.py
    ```
 6. Open http://localhost:5000 in your browser
 
@@ -57,7 +58,7 @@ To get your ESPN credentials:
 4. Connect your GitHub repository
 5. Use these settings:
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python fantasy_football_enhanced.py`
+   - **Start Command**: `python fantasy_tracker.py`
 6. Add environment variables:
    - `ESPN_LEAGUE_ID`: Your league ID
    - `ESPN_S2`: Your ESPN S2 cookie
@@ -76,13 +77,13 @@ PORT=5000
 
 ## File Structure
 ```
-Top_6/
-├── fantasy_football_enhanced.py    # Main application
-├── requirements.txt                # Python dependencies
-├── render.yaml                    # Render deployment config
-├── Procfile                       # Process file for deployment
-├── env_example.txt               # Environment variables template
-└── README.md                     # This file
+├── fantasy_tracker.py           # Main application
+├── requirements.txt             # Python dependencies
+├── render.yaml                  # Render deployment config
+├── Procfile                     # Process file for deployment
+├── .env.example                 # Environment variables template
+├── Dockerfile                   # Docker configuration
+└── README.md                    # This file
 ```
 
 ## API Endpoints
@@ -99,7 +100,7 @@ Top_6/
 3. **App not starting**: Ensure all environment variables are set
 
 ### Logs
-The app creates a `fantasy_football.log` file for debugging.
+The app uses structured logging for debugging.
 
 ## Contributing
 
@@ -108,9 +109,6 @@ Feel free to submit issues and enhancement requests!
 ## License
 
 MIT License - feel free to use and modify as needed.
-=======
-# ESPN_fantasy_football_live_standings
->>>>>>> 458c046d162a64c7a8154adb0cdffd7f730cedb0
 
 
 

@@ -5,7 +5,11 @@ Tests the app without requiring ESPN credentials
 """
 
 import sys
+import os
 import importlib.util
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 def test_imports():
     """Test that all modules can be imported."""

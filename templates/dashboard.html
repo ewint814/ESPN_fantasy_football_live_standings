@@ -99,6 +99,7 @@
         .kickoff-time {
             color: #888;
             font-weight: 500;
+            white-space: nowrap;
         }
 
         .api-error {
@@ -208,6 +209,9 @@
             font-weight: 600;
             color: #333;
             font-size: 1em;
+            overflow-wrap: break-word;
+            word-break: normal;
+            hyphens: none;
         }
 
         .score-cell {
@@ -224,25 +228,33 @@
 
         .players-cell {
             max-width: 300px;
+            overflow-wrap: break-word;
+            word-break: normal;
+            hyphens: none;
         }
 
         .player-names {
             font-size: 0.85em;
             color: #666;
-            line-height: 1.3;
+            line-height: 1.45;
         }
 
         .playing-names {
             font-size: 0.85em;
             color: #28a745;
-            line-height: 1.3;
+            line-height: 1.45;
             font-weight: 600;
+        }
+
+        .player-entry {
+            display: inline;
         }
 
         .no-players {
             font-style: italic;
             color: #999;
             font-size: 0.85em;
+            white-space: nowrap;
         }
 
         .status-cell {
@@ -287,10 +299,83 @@
         }
 
         @media (max-width: 768px) {
-            .header h1 { font-size: 1.5em; }
-            .container { padding: 16px; }
-            .toggle-container { flex-direction: column; }
-            .standings th, .standings td { padding: 8px; font-size: 0.9em; }
+            .header { padding: 16px 12px; }
+            .header h1 { font-size: 1.35em; }
+            .container { padding: 12px; }
+            .toggle-container { gap: 8px; margin-bottom: 14px; }
+            .toggle-btn { flex: 1; padding: 10px 12px; }
+            .homescreen-box { font-size: 0.82em; padding: 10px 12px; }
+
+            /* Stack each standings row so names don't shatter in skinny columns */
+            .standings thead { display: none; }
+            .standings, .standings tbody, .standings tr, .standings td {
+                display: block;
+                width: 100%;
+            }
+            .standings tbody tr {
+                padding: 12px 14px 10px;
+                position: relative;
+            }
+            .standings td {
+                padding: 0;
+                font-size: 0.95em;
+            }
+            .rank-cell, .score-cell, .team-cell, .status-cell, .players-cell, .current-score {
+                width: auto;
+                max-width: none;
+                text-align: left;
+            }
+            .rank-cell {
+                display: inline;
+                font-size: 0.95em;
+                margin-right: 6px;
+            }
+            .team-cell {
+                display: inline;
+                font-size: 1em;
+            }
+            .score-cell, .current-score {
+                float: right;
+                font-size: 1.15em;
+                line-height: 1.2;
+            }
+            .standings tbody tr::after {
+                content: "";
+                display: block;
+                clear: both;
+            }
+            #projectedStandings .score-cell::before,
+            .current-score::before {
+                font-size: 0.65em;
+                font-weight: 600;
+                color: #999;
+                letter-spacing: 0.03em;
+                vertical-align: middle;
+            }
+            #projectedStandings .score-cell::before { content: "proj "; }
+            .current-score::before { content: "now "; }
+            .status-cell { display: none; }
+            .players-cell {
+                clear: both;
+                padding-top: 8px;
+            }
+            .players-cell + .players-cell { padding-top: 6px; }
+            .players-cell::before {
+                content: attr(data-label);
+                display: block;
+                font-size: 0.68em;
+                font-weight: 700;
+                color: #888;
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                margin-bottom: 2px;
+            }
+            .player-entry {
+                display: block;
+                padding: 1px 0;
+            }
+            .player-sep { display: none; }
+            .no-players { white-space: normal; }
         }
     </style>
     <script>
@@ -376,18 +461,32 @@
             return flashes;
         }
 
+        function playerEntries(items) {
+            return items.map((html, i) => {
+                const sep = i < items.length - 1 ? '<span class="player-sep">, </span>' : '';
+                return `<span class="player-entry">${html}</span>${sep}`;
+            }).join('');
+        }
+
         function formatYetToPlay(team) {
             if (team.yet_to_play_details && team.yet_to_play_details.length) {
                 const names = team.yet_to_play_details.map(p => {
                     const kick = p.kickoff ? ` <span class="kickoff-time">${p.kickoff}</span>` : '';
                     return `${p.name} (proj: ${Number(p.projection).toFixed(1)})${kick}`;
                 });
-                return `<div class="player-names">${names.join(', ')}</div>`;
+                return `<div class="player-names">${playerEntries(names)}</div>`;
             }
             if (team.yet_to_play && team.yet_to_play.length) {
-                return `<div class="player-names">${team.yet_to_play.join(', ')}</div>`;
+                return `<div class="player-names">${playerEntries(team.yet_to_play)}</div>`;
             }
             return '<span class="no-players">All done</span>';
+        }
+
+        function formatCurrentlyPlaying(team) {
+            if (team.currently_playing && team.currently_playing.length) {
+                return `<div class="playing-names">${playerEntries(team.currently_playing)}</div>`;
+            }
+            return '<span class="no-players">None</span>';
         }
 
         function rebuildTables(scores) {
@@ -405,10 +504,7 @@
                 const row = document.createElement('tr');
                 row.className = team.is_current_top6 ? 'top6-row' : '';
                 
-                const currentlyPlayingHTML = team.currently_playing && team.currently_playing.length > 0
-                    ? `<div class="playing-names">${team.currently_playing.join(', ')}</div>`
-                    : '<span class="no-players">None</span>';
-
+                const currentlyPlayingHTML = formatCurrentlyPlaying(team);
                 const yetToPlayHTML = formatYetToPlay(team);
                 const flashClass = (flashes && flashes[team.team_name]) || '';
                 
@@ -425,8 +521,8 @@
                     <td class="rank-cell">${team.rank}</td>
                     <td class="team-cell">${team.team_name}</td>
                     <td class="score-cell ${flashClass}">${team.live_score.toFixed(1)}</td>
-                    <td class="players-cell">${currentlyPlayingHTML}</td>
-                    <td class="players-cell">${yetToPlayHTML}</td>
+                    <td class="players-cell" data-label="Currently playing">${currentlyPlayingHTML}</td>
+                    <td class="players-cell" data-label="Yet to play">${yetToPlayHTML}</td>
                     <td class="status-cell">${statusBadge}</td>
                 `;
                 tbody.appendChild(row);
@@ -562,22 +658,30 @@
                         <td class="rank-cell">{{ team.rank }}</td>
                         <td class="team-cell">{{ team.team_name }}</td>
                         <td class="score-cell">{{ "%.1f"|format(team.live_score) }}</td>
-                        <td class="players-cell">
+                        <td class="players-cell" data-label="Currently playing">
                             {% if team.currently_playing %}
-                                <div class="playing-names">{{ team.currently_playing | join(', ') }}</div>
+                                <div class="playing-names">
+                                    {% for name in team.currently_playing %}
+                                        <span class="player-entry">{{ name }}</span>{% if not loop.last %}<span class="player-sep">, </span>{% endif %}
+                                    {% endfor %}
+                                </div>
                             {% else %}
                                 <span class="no-players">None</span>
                             {% endif %}
                         </td>
-                        <td class="players-cell">
+                        <td class="players-cell" data-label="Yet to play">
                             {% if team.yet_to_play_details %}
                                 <div class="player-names">
                                     {% for p in team.yet_to_play_details %}
-                                        {{ p.name }} (proj: {{ "%.1f"|format(p.projection) }}){% if p.kickoff %} <span class="kickoff-time">{{ p.kickoff }}</span>{% endif %}{% if not loop.last %}, {% endif %}
+                                        <span class="player-entry">{{ p.name }} (proj: {{ "%.1f"|format(p.projection) }}){% if p.kickoff %} <span class="kickoff-time">{{ p.kickoff }}</span>{% endif %}</span>{% if not loop.last %}<span class="player-sep">, </span>{% endif %}
                                     {% endfor %}
                                 </div>
                             {% elif team.yet_to_play %}
-                                <div class="player-names">{{ team.yet_to_play | join(', ') }}</div>
+                                <div class="player-names">
+                                    {% for name in team.yet_to_play %}
+                                        <span class="player-entry">{{ name }}</span>{% if not loop.last %}<span class="player-sep">, </span>{% endif %}
+                                    {% endfor %}
+                                </div>
                             {% else %}
                                 <span class="no-players">All done</span>
                             {% endif %}

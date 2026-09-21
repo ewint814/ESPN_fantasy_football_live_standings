@@ -313,28 +313,142 @@
             // Update last update time
             if (data.last_update) {
                 const updateTime = new Date(data.last_update);
-                document.querySelector('.last-update').textContent =
-                    'Last updated: ' + updateTime.toLocaleTimeString();
+                const lastUpdateEl = document.querySelector('.last-update');
+                if (lastUpdateEl) {
+                    lastUpdateEl.textContent = 'Last updated: ' + updateTime.toLocaleTimeString();
+                }
             }
 
             // Update error message
             const errorDiv = document.querySelector('.api-error');
-            if (data.api_error) {
-                errorDiv.textContent = data.api_error;
-                errorDiv.style.display = 'inline-block';
-            } else {
-                errorDiv.style.display = 'none';
+            if (errorDiv) {
+                if (data.api_error) {
+                    errorDiv.textContent = data.api_error;
+                    errorDiv.style.display = 'inline-block';
+                } else {
+                    errorDiv.style.display = 'none';
+                }
             }
 
-            // Rebuild tables with new data
+            // Update scores in-place without reloading
             if (data.scores && data.scores.length > 0) {
                 rebuildTables(data.scores);
             }
         }
 
         function rebuildTables(scores) {
-            // Disabled auto-reload - user can manually refresh to see updates
-            console.log('📊 New scores available - refresh page to see updates');
+            // Update scores in-place - no page reload!
+            updateCurrentStandings(scores);
+            updateProjectedStandings(scores);
+            updateMovementStandings(scores);
+        }
+
+        function updateCurrentStandings(scores) {
+            const tbody = document.querySelector('#currentStandings tbody');
+            if (!tbody) return;
+            
+            // Clear and rebuild the table rows
+            tbody.innerHTML = '';
+            scores.forEach(team => {
+                const row = document.createElement('tr');
+                row.className = team.is_current_top6 ? 'top6-row' : '';
+                
+                const yetToPlayHTML = team.yet_to_play && team.yet_to_play.length > 0
+                    ? `<div class="player-names">${team.yet_to_play.join(', ')}</div>`
+                    : '<span class="no-players">All done</span>';
+                
+                let statusBadge = '';
+                if (team.rank === 1) {
+                    statusBadge = '<span class="status-badge top-scorer-badge">TOP</span>';
+                } else if (team.rank === scores.length) {
+                    statusBadge = '<span class="status-badge parlay-badge">LAST</span>';
+                } else if (team.is_current_top6) {
+                    statusBadge = '<span class="status-badge current-badge">TOP 6</span>';
+                }
+                
+                row.innerHTML = `
+                    <td class="rank-cell">${team.rank}</td>
+                    <td class="team-cell">${team.team_name}</td>
+                    <td class="score-cell">${team.live_score.toFixed(1)}</td>
+                    <td class="players-cell">${yetToPlayHTML}</td>
+                    <td class="status-cell">${statusBadge}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateProjectedStandings(scores) {
+            const tbody = document.querySelector('#projectedStandings tbody');
+            if (!tbody) return;
+            
+            const sortedScores = [...scores].sort((a, b) => b.projected_score - a.projected_score);
+            tbody.innerHTML = '';
+            
+            sortedScores.forEach(team => {
+                const row = document.createElement('tr');
+                row.className = team.is_projected_top6 ? 'top6-row' : '';
+                
+                let statusBadge = '';
+                if (team.projected_rank === 1) {
+                    statusBadge = '<span class="status-badge top-scorer-badge">TOP</span>';
+                } else if (team.projected_rank === scores.length) {
+                    statusBadge = '<span class="status-badge parlay-badge">LAST</span>';
+                } else if (team.is_projected_top6) {
+                    statusBadge = '<span class="status-badge projected-badge">TOP 6</span>';
+                }
+                
+                row.innerHTML = `
+                    <td class="rank-cell">${team.projected_rank}</td>
+                    <td class="team-cell">${team.team_name}</td>
+                    <td class="score-cell">${team.projected_score.toFixed(1)}</td>
+                    <td class="current-score">${team.live_score.toFixed(1)}</td>
+                    <td class="status-cell">${statusBadge}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function updateMovementStandings(scores) {
+            const tbody = document.querySelector('#movementStandings tbody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            scores.forEach(team => {
+                const row = document.createElement('tr');
+                row.className = team.is_current_top6 ? 'top6-row' : '';
+                
+                const movement = team.rank - team.projected_rank;
+                let movementHTML = '';
+                if (movement > 0) {
+                    movementHTML = `<span class="movement-up">↑${movement}</span>`;
+                } else if (movement < 0) {
+                    movementHTML = `<span class="movement-down">↓${Math.abs(movement)}</span>`;
+                } else {
+                    movementHTML = '<span class="movement-same">—</span>';
+                }
+                
+                let statusBadge = '';
+                if (team.rank === 1) {
+                    statusBadge = '<span class="status-badge top-scorer-badge">TOP</span>';
+                } else if (team.rank === scores.length) {
+                    statusBadge = '<span class="status-badge parlay-badge">LAST</span>';
+                } else if (team.is_current_top6) {
+                    statusBadge = '<span class="status-badge current-badge">TOP 6</span>';
+                }
+                
+                row.innerHTML = `
+                    <td class="rank-cell">${team.rank}</td>
+                    <td class="team-cell">${team.team_name}</td>
+                    <td class="movement-scores">
+                        <span class="current-score">${team.live_score.toFixed(1)}</span>
+                        <span class="arrow">→</span>
+                        <span class="projected-score">${team.projected_score.toFixed(1)}</span>
+                    </td>
+                    <td class="movement-cell">${movementHTML}</td>
+                    <td class="status-cell">${statusBadge}</td>
+                `;
+                tbody.appendChild(row);
+            });
         }
 
         // Show error if loading takes too long
@@ -366,10 +480,10 @@
             }
         }, 15000);  // Check after 15 seconds
 
-        // Disabled SSE auto-connection - scores update in background, user manually refreshes
-        // window.addEventListener('DOMContentLoaded', function() {
-        //     connectSSE();
-        // });
+        // Connect to real-time stream on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            connectSSE();
+        });
     </script>
 </head>
 <body>

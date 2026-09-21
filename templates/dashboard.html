@@ -201,6 +201,13 @@
             line-height: 1.3;
         }
 
+        .playing-names {
+            font-size: 0.85em;
+            color: #28a745;
+            line-height: 1.3;
+            font-weight: 600;
+        }
+
         .no-players {
             font-style: italic;
             color: #999;
@@ -353,6 +360,10 @@
                 const row = document.createElement('tr');
                 row.className = team.is_current_top6 ? 'top6-row' : '';
                 
+                const currentlyPlayingHTML = team.currently_playing && team.currently_playing.length > 0
+                    ? `<div class="playing-names">${team.currently_playing.join(', ')}</div>`
+                    : '<span class="no-players">None</span>';
+
                 const yetToPlayHTML = team.yet_to_play && team.yet_to_play.length > 0
                     ? `<div class="player-names">${team.yet_to_play.join(', ')}</div>`
                     : '<span class="no-players">All done</span>';
@@ -370,6 +381,7 @@
                     <td class="rank-cell">${team.rank}</td>
                     <td class="team-cell">${team.team_name}</td>
                     <td class="score-cell">${team.live_score.toFixed(1)}</td>
+                    <td class="players-cell">${currentlyPlayingHTML}</td>
                     <td class="players-cell">${yetToPlayHTML}</td>
                     <td class="status-cell">${statusBadge}</td>
                 `;
@@ -519,6 +531,7 @@
                         <th>Rank</th>
                         <th>Team</th>
                         <th>Score</th>
+                        <th>Currently Playing</th>
                         <th>Yet to Play</th>
                         <th>Status</th>
                     </tr>
@@ -529,6 +542,13 @@
                         <td class="rank-cell">{{ team.rank }}</td>
                         <td class="team-cell">{{ team.team_name }}</td>
                         <td class="score-cell">{{ "%.1f"|format(team.live_score) }}</td>
+                        <td class="players-cell">
+                            {% if team.currently_playing %}
+                                <div class="playing-names">{{ team.currently_playing | join(', ') }}</div>
+                            {% else %}
+                                <span class="no-players">None</span>
+                            {% endif %}
+                        </td>
                         <td class="players-cell">
                             {% if team.yet_to_play %}
                                 <div class="player-names">{{ team.yet_to_play | join(', ') }}</div>

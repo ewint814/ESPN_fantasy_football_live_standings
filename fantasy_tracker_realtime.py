@@ -512,11 +512,6 @@ class FantasyTracker:
         @self.app.route('/')
         def dashboard() -> str:
             return self._render_dashboard()
-
-        @self.app.route('/sandbox')
-        def sandbox() -> str:
-            """UI sandbox — does not change the current dashboard."""
-            return self._render_sandbox()
         
         @self.app.route('/api/scores')
         def api_scores() -> Response:
@@ -564,113 +559,6 @@ class FantasyTracker:
             nfl_year=self.nfl_year,
             api_error=self.api_error,
             eastern=self.eastern
-        )
-
-    def _demo_scores(self) -> List[Dict[str, Any]]:
-        """Sample standings so the sandbox UI can be previewed without live ESPN data."""
-        return [
-            {
-                'team_name': 'Gridiron Giants',
-                'live_score': 98.4,
-                'projected_score': 124.1,
-                'currently_playing': ['Mahomes (18.6)', 'Kelce (12.2)', 'Chiefs D (6.0)'],
-                'yet_to_play': ['Rice (proj: 14.8)', 'Butker (proj: 8.5)'],
-                'rank': 1,
-                'projected_rank': 1,
-                'is_current_top6': True,
-                'is_projected_top6': True,
-            },
-            {
-                'team_name': 'Sunday Funday',
-                'live_score': 86.1,
-                'projected_score': 119.7,
-                'currently_playing': ['Hurts (16.4)', 'Barkley (14.1)'],
-                'yet_to_play': ['A.J. Brown (proj: 15.2)', 'Goedert (proj: 8.8)'],
-                'rank': 2,
-                'projected_rank': 2,
-                'is_current_top6': True,
-                'is_projected_top6': True,
-            },
-            {
-                'team_name': 'Red Zone Renegades',
-                'live_score': 81.7,
-                'projected_score': 108.3,
-                'currently_playing': ['Lamar (21.0)'],
-                'yet_to_play': ['Henry (proj: 16.4)', 'Andrews (proj: 9.1)'],
-                'rank': 3,
-                'projected_rank': 5,
-                'is_current_top6': True,
-                'is_projected_top6': True,
-            },
-            {
-                'team_name': 'Waiver Wire Wizards',
-                'live_score': 74.2,
-                'projected_score': 116.8,
-                'currently_playing': ['Allen (13.8)'],
-                'yet_to_play': ['Chase (proj: 18.6)', 'Mixon (proj: 13.2)', 'McPherson (proj: 8.0)'],
-                'rank': 4,
-                'projected_rank': 3,
-                'is_current_top6': True,
-                'is_projected_top6': True,
-            },
-            {
-                'team_name': 'Fourth Down Faithful',
-                'live_score': 69.5,
-                'projected_score': 111.4,
-                'currently_playing': ['CMC (17.9)', 'Purdy (11.3)'],
-                'yet_to_play': ['Kittle (proj: 10.4)'],
-                'rank': 5,
-                'projected_rank': 4,
-                'is_current_top6': True,
-                'is_projected_top6': True,
-            },
-            {
-                'team_name': 'Playaction Heroes',
-                'live_score': 61.8,
-                'projected_score': 102.0,
-                'currently_playing': [],
-                'yet_to_play': ['Goff (proj: 17.1)', 'St. Brown (proj: 16.8)', 'LaPorta (proj: 9.6)'],
-                'rank': 6,
-                'projected_rank': 7,
-                'is_current_top6': True,
-                'is_projected_top6': False,
-            },
-            {
-                'team_name': 'Blitz Inc.',
-                'live_score': 54.3,
-                'projected_score': 104.6,
-                'currently_playing': ['Jackson (9.2)'],
-                'yet_to_play': ['Lamb (proj: 15.9)', 'Pollard (proj: 12.1)'],
-                'rank': 7,
-                'projected_rank': 6,
-                'is_current_top6': False,
-                'is_projected_top6': True,
-            },
-            {
-                'team_name': 'Sack Lunch',
-                'live_score': 41.0,
-                'projected_score': 89.2,
-                'currently_playing': [],
-                'yet_to_play': ['Prescott (proj: 16.0)', 'Cooks (proj: 8.4)'],
-                'rank': 8,
-                'projected_rank': 8,
-                'is_current_top6': False,
-                'is_projected_top6': False,
-            },
-        ]
-
-    def _render_sandbox(self) -> str:
-        """Render the UI sandbox. Uses live scores when available, otherwise demo data."""
-        using_demo = not self.live_scores
-        return render_template(
-            'sandbox.html',
-            scores=self.live_scores or self._demo_scores(),
-            last_update=self.last_update,
-            week=self.current_week,
-            nfl_year=self.nfl_year,
-            api_error=self.api_error,
-            eastern=self.eastern,
-            using_demo=using_demo,
         )
     
     def run(self, host: Optional[str] = None, port: Optional[int] = None, debug: Optional[bool] = None) -> None:

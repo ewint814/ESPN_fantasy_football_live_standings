@@ -15,7 +15,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY fantasy_tracker.py fantasy_tracker_realtime.py config.py nfl_utils.py ./
+COPY fantasy_tracker_realtime.py config.py nfl_utils.py constants.py ./
+COPY templates/ ./templates/
 
 # Expose port
 EXPOSE 5000

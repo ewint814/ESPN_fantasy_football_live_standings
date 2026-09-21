@@ -262,6 +262,91 @@
             padding: 50px;
         }
 
+        .new-tag {
+            display: inline-block;
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffc107;
+            border-radius: 3px;
+            padding: 1px 6px;
+            font-size: 0.68em;
+            font-weight: 700;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+
+        .preview-legend {
+            background: #fff8e1;
+            border: 1px solid #ffe08a;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            font-size: 0.88em;
+            color: #5c4a00;
+            text-align: left;
+        }
+
+        .preview-legend h3 {
+            font-size: 0.95em;
+            margin-bottom: 6px;
+            color: #333;
+        }
+
+        .preview-legend li { margin: 4px 0 4px 18px; }
+
+        .kickoff { color: #555; font-size: 0.8em; }
+        .flag-out { color: #dc3545; font-weight: 700; font-size: 0.78em; }
+        .flag-bye { color: #856404; font-weight: 700; font-size: 0.78em; }
+        .remaining { color: #007bff; font-weight: 700; white-space: nowrap; }
+
+        .score-cell.flash-up { animation: flashUp 1.2s ease; }
+        .score-cell.flash-down { animation: flashDown 1.2s ease; }
+
+        @keyframes flashUp {
+            0% { background: #c8f0d4; color: #155724; }
+            100% { background: transparent; }
+        }
+        @keyframes flashDown {
+            0% { background: #f8d7da; color: #721c24; }
+            100% { background: transparent; }
+        }
+
+        .homescreen-box {
+            background: #eef6ff;
+            border: 1px solid #b6d4fe;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            text-align: left;
+            font-size: 0.9em;
+            color: #084298;
+        }
+
+        .homescreen-box button {
+            margin-top: 8px;
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .demo-flash-btn {
+            background: #333;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+            margin-top: 8px;
+        }
+
+        .player-line { margin-bottom: 3px; }
+
         @media (max-width: 768px) {
             .header h1 { font-size: 1.5em; }
             .container { padding: 16px; }
@@ -287,14 +372,21 @@
             updateView();
         }
 
+        function showPreview() {
+            currentView = 'preview';
+            updateView();
+        }
+
         function updateView() {
             document.getElementById('currentStandings').style.display = currentView === 'current' ? 'block' : 'none';
             document.getElementById('projectedStandings').style.display = currentView === 'projected' ? 'block' : 'none';
             document.getElementById('movementStandings').style.display = currentView === 'movement' ? 'block' : 'none';
+            document.getElementById('previewStandings').style.display = currentView === 'preview' ? 'block' : 'none';
 
             document.getElementById('currentBtn').classList.toggle('active', currentView === 'current');
             document.getElementById('projectedBtn').classList.toggle('active', currentView === 'projected');
             document.getElementById('movementBtn').classList.toggle('active', currentView === 'movement');
+            document.getElementById('previewBtn').classList.toggle('active', currentView === 'preview');
         }
 
         // Real-time updates using Server-Sent Events
@@ -348,6 +440,7 @@
             updateCurrentStandings(scores);
             updateProjectedStandings(scores);
             updateMovementStandings(scores);
+            updatePreviewStandings(scores);
         }
 
         function updateCurrentStandings(scores) {
@@ -463,6 +556,76 @@
             });
         }
 
+        let previousPreviewScores = {};
+        let deferredInstallPrompt = null;
+
+        function playerPreviewLines(details, kind) {
+            if (!details || details.length === 0) {
+                return '<span class="no-players">None</span>';
+            }
+            return details.map(p => {
+                const flags = [];
+                if (p.on_bye) flags.push('<span class="flag-bye">BYE</span>');
+                if (p.injury) flags.push(`<span class="flag-out">${p.injury}</span>`);
+                const kickoff = p.kickoff
+                    ? `<span class="kickoff">${p.kickoff}</span>`
+                    : '<span class="kickoff">kickoff TBD</span>';
+                const pts = kind === 'live'
+                    ? `${Number(p.points).toFixed(1)}`
+                    : `proj ${Number(p.projection).toFixed(1)}`;
+                return `<div class="player-line">${p.name} (${pts}) ${kickoff} ${flags.join(' ')}</div>`;
+            }).join('');
+        }
+
+        function updatePreviewStandings(scores) {
+            const tbody = document.querySelector('#previewStandings tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            scores.forEach(team => {
+                const prev = previousPreviewScores[team.team_name];
+                let flashClass = '';
+                if (typeof prev === 'number') {
+                    if (team.live_score > prev + 0.05) flashClass = 'flash-up';
+                    else if (team.live_score < prev - 0.05) flashClass = 'flash-down';
+                }
+                previousPreviewScores[team.team_name] = team.live_score;
+
+                const row = document.createElement('tr');
+                row.className = team.is_current_top6 ? 'top6-row' : '';
+                row.innerHTML = `
+                    <td class="rank-cell">${team.rank}</td>
+                    <td class="team-cell">${team.team_name}</td>
+                    <td class="score-cell ${flashClass}">${Number(team.live_score).toFixed(1)}</td>
+                    <td class="remaining">+${Number(team.remaining_projection || 0).toFixed(1)} left</td>
+                    <td class="players-cell">${playerPreviewLines(team.currently_playing_details, 'live')}</td>
+                    <td class="players-cell">${playerPreviewLines(team.yet_to_play_details, 'wait')}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function demoScoreFlash() {
+            document.querySelectorAll('#previewStandings .score-cell').forEach((cell, i) => {
+                cell.classList.remove('flash-up', 'flash-down');
+                void cell.offsetWidth;
+                cell.classList.add(i % 2 === 0 ? 'flash-up' : 'flash-down');
+            });
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            const btn = document.getElementById('installAppBtn');
+            if (btn) btn.style.display = 'inline-block';
+        });
+
+        async function installApp() {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+        }
+
         // Show error if loading takes too long
         let loadingStartTime = Date.now();
         setTimeout(function() {
@@ -522,6 +685,7 @@
             <button id="currentBtn" class="toggle-btn active" onclick="showCurrent()">Current Standings</button>
             <button id="projectedBtn" class="toggle-btn" onclick="showProjected()">Live Projections</button>
             <button id="movementBtn" class="toggle-btn" onclick="showMovement()">Movement</button>
+            <button id="previewBtn" class="toggle-btn" onclick="showPreview()">Preview (new ideas)</button>
         </div>
 
         <div id="currentStandings" class="standings-table">
@@ -642,6 +806,77 @@
                                 <span class="status-badge parlay-badge">LAST</span>
                             {% elif team.is_current_top6 %}
                                 <span class="status-badge current-badge">TOP 6</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div id="previewStandings" class="standings-table" style="display: none;">
+            <div class="preview-legend">
+                <h3>Preview tab — original tables are unchanged</h3>
+                Yellow <span class="new-tag">New</span> labels mark each experiment:
+                <ul>
+                    <li><span class="new-tag">New</span> <strong>Kickoff</strong> — next to yet-to-play names (e.g. Sun 4:25 PM ET)</li>
+                    <li><span class="new-tag">New</span> <strong>Injury / BYE</strong> — red OUT or gold BYE next to the player</li>
+                    <li><span class="new-tag">New</span> <strong>+pts left</strong> — remaining projection from players who haven’t started</li>
+                    <li><span class="new-tag">New</span> <strong>Score flash</strong> — Score cell blinks green/red when it changes. Use the demo button if games are quiet.</li>
+                    <li><span class="new-tag">New</span> <strong>Add to Home Screen</strong> — box below, for your phone</li>
+                </ul>
+                <button class="demo-flash-btn" type="button" onclick="demoScoreFlash()">Demo the score flash</button>
+            </div>
+            <div class="homescreen-box">
+                <span class="new-tag">New</span>
+                <strong>Add to Home Screen</strong> — iPhone: Share → Add to Home Screen. Android: use the button if it appears, or browser menu → Install / Add to Home screen.
+                <br>
+                <button id="installAppBtn" type="button" onclick="installApp()" style="display:none;">Install app</button>
+            </div>
+            <table class="standings">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Team</th>
+                        <th>Score <span class="new-tag">Flash</span></th>
+                        <th><span class="new-tag">New</span> Left</th>
+                        <th>Currently Playing</th>
+                        <th>Yet to Play <span class="new-tag">Kickoff / INJ</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in scores %}
+                    <tr class="{{ 'top6-row' if team.is_current_top6 else '' }}">
+                        <td class="rank-cell">{{ team.rank }}</td>
+                        <td class="team-cell">{{ team.team_name }}</td>
+                        <td class="score-cell">{{ "%.1f"|format(team.live_score) }}</td>
+                        <td class="remaining">+{{ "%.1f"|format(team.remaining_projection or 0) }} left</td>
+                        <td class="players-cell">
+                            {% if team.currently_playing_details %}
+                                {% for p in team.currently_playing_details %}
+                                <div class="player-line">
+                                    {{ p.name }} ({{ "%.1f"|format(p.points) }})
+                                    {% if p.kickoff %}<span class="kickoff">{{ p.kickoff }}</span>{% endif %}
+                                    {% if p.on_bye %}<span class="flag-bye">BYE</span>{% endif %}
+                                    {% if p.injury %}<span class="flag-out">{{ p.injury }}</span>{% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <span class="no-players">None</span>
+                            {% endif %}
+                        </td>
+                        <td class="players-cell">
+                            {% if team.yet_to_play_details %}
+                                {% for p in team.yet_to_play_details %}
+                                <div class="player-line">
+                                    {{ p.name }} (proj {{ "%.1f"|format(p.projection) }})
+                                    <span class="kickoff">{{ p.kickoff or 'kickoff TBD' }}</span>
+                                    {% if p.on_bye %}<span class="flag-bye">BYE</span>{% endif %}
+                                    {% if p.injury %}<span class="flag-out">{{ p.injury }}</span>{% endif %}
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <span class="no-players">All done</span>
                             {% endif %}
                         </td>
                     </tr>

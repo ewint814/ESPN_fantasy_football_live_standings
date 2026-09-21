@@ -266,6 +266,45 @@ class FantasyTracker:
         except Exception as e:
             logger.debug(f"Projection calculation error: {e}, returning pre_game: {pre_game}")
             return max(pre_game, current, 0.0)
+
+    def _format_kickoff(self, player: Any) -> str:
+        """Format a player's NFL kickoff time in Eastern Time."""
+        game_date = getattr(player, 'game_date', None)
+        if not game_date:
+            return ''
+        try:
+            if getattr(game_date, 'tzinfo', None) is None:
+                game_date = pytz.UTC.localize(game_date)
+            et = game_date.astimezone(self.eastern)
+            hour = et.strftime('%I').lstrip('0') or '0'
+            return et.strftime(f'%a {hour}:%M %p ET')
+        except Exception:
+            return ''
+
+    def _player_status_flags(self, player: Any) -> Dict[str, Any]:
+        """Injury / bye flags for preview UI."""
+        on_bye = bool(getattr(player, 'on_bye_week', False))
+        injury = getattr(player, 'injuryStatus', None) or getattr(player, 'injury_status', None)
+        if injury in (True, 'True'):
+            injury = 'INJ'
+        if isinstance(injury, str):
+            injury = injury.strip().upper()
+        else:
+            injury = ''
+        if injury in ('ACTIVE', 'HEALTHY', 'N/A', 'NONE'):
+            injury = ''
+        return {'on_bye': on_bye, 'injury': injury or ''}
+
+    def _player_detail(self, player: Any, points: float, projection: float) -> Dict[str, Any]:
+        flags = self._player_status_flags(player)
+        return {
+            'name': getattr(player, 'name', 'Unknown'),
+            'points': float(points or 0.0),
+            'projection': float(projection or 0.0),
+            'kickoff': self._format_kickoff(player),
+            'injury': flags['injury'],
+            'on_bye': flags['on_bye'],
+        }
     
     def _get_live_scores(self) -> List[Dict[str, Any]]:
         """Fetch current live scores."""
@@ -288,8 +327,11 @@ class FantasyTracker:
                     currently_playing: List[str] = []
                     yet_to_play: List[str] = []
                     finished_playing: List[str] = []
+                    currently_playing_details: List[Dict[str, Any]] = []
+                    yet_to_play_details: List[Dict[str, Any]] = []
                     total_starters = 0
                     projected_total = 0.0
+                    remaining_projection = 0.0
                     
                     for player in lineup:
                         if player.slot_position == "BE":
@@ -329,39 +371,49 @@ class FantasyTracker:
                         if player_points > 0:
                             # Player is playing or has finished
                             if game_played in (100, 2):
-                                # Game is finished
                                 finished_playing.append(f"{player_name} ({player_points:.1f})")
                                 projected_total += player_points
                             else:
-                                # Currently playing
                                 currently_playing.append(f"{player_name} ({player_points:.1f})")
+                                currently_playing_details.append(
+                                    self._player_detail(player, player_points, live_projection)
+                                )
                                 projected_total += live_projection
                         else:
-                            # No points yet - could be yet to play or finished with 0
                             if game_played == 0:
-                                # Definitely hasn't played yet
                                 yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
+                                yet_to_play_details.append(
+                                    self._player_detail(player, player_points, pre_game_projection)
+                                )
                                 projected_total += pre_game_projection
+                                remaining_projection += float(pre_game_projection or 0.0)
                             elif game_played in (100, 2):
-                                # Game finished with 0 points
                                 finished_playing.append(f"{player_name} (0.0)")
                                 projected_total += player_points
                             elif game_played == 1:
-                                # Currently playing with 0 points
                                 currently_playing.append(f"{player_name} (0.0)")
+                                currently_playing_details.append(
+                                    self._player_detail(player, player_points, live_projection)
+                                )
                                 projected_total += live_projection
                             else:
-                                # Unclear status, assume yet to play
                                 yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
+                                yet_to_play_details.append(
+                                    self._player_detail(player, player_points, pre_game_projection)
+                                )
                                 projected_total += pre_game_projection
+                                remaining_projection += float(pre_game_projection or 0.0)
                     
                     teams_data.append({
                         'team_name': team_name,
                         'live_score': float(score) if score else 0.0,
                         'projected_score': projected_total,
+                        'remaining_projection': remaining_projection,
                         'currently_playing': currently_playing,
                         'yet_to_play': yet_to_play,
                         'finished_playing': finished_playing,
+                        'currently_playing_details': currently_playing_details,
+                        'yet_to_play_details': yet_to_play_details,
                         'players_playing_count': len(currently_playing),
                         'players_remaining_count': len(yet_to_play),
                         'players_finished_count': len(finished_playing),

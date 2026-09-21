@@ -226,6 +226,23 @@
             color: #28a745;
         }
 
+        .score-now {
+            line-height: 1.15;
+        }
+
+        .live-proj {
+            display: block;
+            margin-top: 2px;
+            font-size: 0.75em;
+            font-weight: 600;
+            color: #007bff;
+            line-height: 1.2;
+        }
+
+        .top6-row .live-proj {
+            color: #0d6efd;
+        }
+
         .players-cell {
             max-width: 300px;
             overflow-wrap: break-word;
@@ -286,8 +303,8 @@
             padding: 50px;
         }
 
-        .score-cell.flash-up, .current-score.flash-up { animation: flashUp 1.2s ease; }
-        .score-cell.flash-down, .current-score.flash-down { animation: flashDown 1.2s ease; }
+        .score-cell.flash-up, .current-score.flash-up, .live-proj.flash-up, .score-now.flash-up { animation: flashUp 1.2s ease; }
+        .score-cell.flash-down, .current-score.flash-down, .live-proj.flash-down, .score-now.flash-down { animation: flashDown 1.2s ease; }
 
         @keyframes flashUp {
             0% { background: #c8f0d4; color: #155724; }
@@ -467,19 +484,35 @@
         }
 
         let previousLiveScores = {};
+        let previousProjectedScores = {};
         let deferredInstallPrompt = null;
+
+        function directionFlash(current, previous) {
+            if (typeof previous !== 'number') return '';
+            if (current > previous + 0.05) return 'flash-up';
+            if (current < previous - 0.05) return 'flash-down';
+            return '';
+        }
 
         function scoreFlashes(scores) {
             const flashes = {};
             scores.forEach(team => {
-                const prev = previousLiveScores[team.team_name];
-                if (typeof prev === 'number') {
-                    if (team.live_score > prev + 0.05) flashes[team.team_name] = 'flash-up';
-                    else if (team.live_score < prev - 0.05) flashes[team.team_name] = 'flash-down';
-                }
+                flashes[team.team_name] = directionFlash(team.live_score, previousLiveScores[team.team_name]);
+                flashes[team.team_name + '_proj'] = directionFlash(
+                    team.projected_score, previousProjectedScores[team.team_name]
+                );
                 previousLiveScores[team.team_name] = team.live_score;
+                previousProjectedScores[team.team_name] = team.projected_score;
             });
             return flashes;
+        }
+
+        function formatScoreWithProj(team, flashes) {
+            const liveFlash = (flashes && flashes[team.team_name]) || '';
+            const projFlash = (flashes && flashes[team.team_name + '_proj']) || '';
+            const proj = Number(team.projected_score || 0).toFixed(1);
+            return `<div class="score-now ${liveFlash}">${Number(team.live_score).toFixed(1)}</div>` +
+                `<div class="live-proj ${projFlash}">proj ${proj}</div>`;
         }
 
         function playerEntries(items) {
@@ -527,7 +560,6 @@
                 
                 const currentlyPlayingHTML = formatCurrentlyPlaying(team);
                 const yetToPlayHTML = formatYetToPlay(team);
-                const flashClass = (flashes && flashes[team.team_name]) || '';
                 
                 let statusBadge = '';
                 if (team.rank === 1) {
@@ -541,7 +573,7 @@
                 row.innerHTML = `
                     <td class="rank-cell">${team.rank}</td>
                     <td class="team-cell">${team.team_name}</td>
-                    <td class="score-cell ${flashClass}">${team.live_score.toFixed(1)}</td>
+                    <td class="score-cell">${formatScoreWithProj(team, flashes)}</td>
                     <td class="players-cell" data-label="Currently playing">${currentlyPlayingHTML}</td>
                     <td class="players-cell" data-label="Yet to play">${yetToPlayHTML}</td>
                     <td class="status-cell">${statusBadge}</td>
@@ -560,7 +592,8 @@
             sortedScores.forEach(team => {
                 const row = document.createElement('tr');
                 row.className = team.is_projected_top6 ? 'top6-row' : '';
-                const flashClass = (flashes && flashes[team.team_name]) || '';
+                const liveFlash = (flashes && flashes[team.team_name]) || '';
+                const projFlash = (flashes && flashes[team.team_name + '_proj']) || '';
                 
                 let statusBadge = '';
                 if (team.projected_rank === 1) {
@@ -574,8 +607,8 @@
                 row.innerHTML = `
                     <td class="rank-cell">${team.projected_rank}</td>
                     <td class="team-cell">${team.team_name}</td>
-                    <td class="score-cell">${team.projected_score.toFixed(1)}</td>
-                    <td class="current-score ${flashClass}">${team.live_score.toFixed(1)}</td>
+                    <td class="score-cell ${projFlash}">${team.projected_score.toFixed(1)}</td>
+                    <td class="current-score ${liveFlash}">${team.live_score.toFixed(1)}</td>
                     <td class="status-cell">${statusBadge}</td>
                 `;
                 tbody.appendChild(row);
@@ -667,7 +700,7 @@
                     <tr>
                         <th>Rank</th>
                         <th>Team</th>
-                        <th>Score</th>
+                        <th>Score / Proj</th>
                         <th>Currently Playing</th>
                         <th>Yet to Play</th>
                         <th>Status</th>
@@ -678,7 +711,10 @@
                     <tr class="{{ 'top6-row' if team.is_current_top6 else '' }}">
                         <td class="rank-cell">{{ team.rank }}</td>
                         <td class="team-cell">{{ team.team_name }}</td>
-                        <td class="score-cell">{{ "%.1f"|format(team.live_score) }}</td>
+                        <td class="score-cell">
+                            <div class="score-now">{{ "%.1f"|format(team.live_score) }}</div>
+                            <div class="live-proj">proj {{ "%.1f"|format(team.projected_score) }}</div>
+                        </td>
                         <td class="players-cell" data-label="Currently playing">
                             {% if team.currently_playing %}
                                 <div class="playing-names">

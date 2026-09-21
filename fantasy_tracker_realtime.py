@@ -405,45 +405,35 @@ class FantasyTracker:
             return 30.0
     
     def _calculate_live_projection(self, pre_game: float, current: float, minutes: float) -> float:
-        """
-        Calculate live projection based on current performance.
-        
-        Args:
-            pre_game: Pre-game projected points
-            current: Current points scored
-            minutes: Minutes played in the game
-            
-        Returns:
-            Projected final score
+        """Project a player's finish from current points + remaining game time.
+
+        Updates as the game progresses: early minutes trust the pre-game line,
+        later minutes trust current pace. After regulation, projection is
+        current points (overtime scoring is already in current).
         """
         try:
-            # If no pre-game projection, use current points
+            current = max(float(current or 0.0), 0.0)
+            pre_game = max(float(pre_game or 0.0), 0.0)
+            minutes = max(float(minutes or 0.0), 0.0)
+
             if pre_game <= 0:
-                return max(current, 0.0)
-            
-            # Game is essentially over (>= 55 minutes of regulation)
-            if minutes >= 55:
                 return current
-            
-            # Game just started (<= 5 minutes), trust pre-game projection
+            if minutes >= 60:
+                return current
             if minutes <= 5:
-                return pre_game
-            
-            # Calculate scoring rate and project to full game
+                return max(pre_game, current)
+
+            remaining = 60.0 - minutes
             scoring_rate = current / minutes
-            projected_final = scoring_rate * 60
-            
-            # Don't project less than 50% of pre-game expectation (floor)
-            # unless player is actually underperforming that badly
-            floor = pre_game * 0.5
-            
-            # Weight between projection and current pace based on time played
-            # More time played = trust current pace more
-            time_weight = min(minutes / 60, 0.8)  # Cap at 80% weight
-            weighted_projection = (projected_final * time_weight) + (pre_game * (1 - time_weight))
-            
-            return max(weighted_projection, floor, current)
-            
+            remaining_from_pace = scoring_rate * remaining
+            remaining_from_pre = pre_game * (remaining / 60.0)
+            time_weight = min(minutes / 60.0, 0.8)
+            remaining_proj = (remaining_from_pace * time_weight) + (
+                remaining_from_pre * (1.0 - time_weight)
+            )
+            floor = current + (pre_game * 0.5 * remaining / 60.0)
+            return max(current + remaining_proj, floor, current)
+
         except Exception as e:
             logger.debug(f"Projection calculation error: {e}, returning pre_game: {pre_game}")
             return max(pre_game, current, 0.0)

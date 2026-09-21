@@ -15,6 +15,7 @@ def _tracker():
     obj._sleeper_clock_from_game = FantasyTracker._sleeper_clock_from_game.__get__(obj, FantasyTracker)
     obj._clocks_from_sleeper_scores = FantasyTracker._clocks_from_sleeper_scores.__get__(obj, FantasyTracker)
     obj._merge_game_clocks = FantasyTracker._merge_game_clocks.__get__(obj, FantasyTracker)
+    obj._calculate_live_projection = FantasyTracker._calculate_live_projection.__get__(obj, FantasyTracker)
     return obj
 
 
@@ -181,3 +182,22 @@ def test_sleeper_was_alias_indexes_wsh():
     tracker.game_clocks = clocks
     assert tracker._clock_for_team('WSH')['sleeper_in_progress'] is True
     assert tracker._is_nfl_game_live(tracker._clock_for_team('WSH')) is True
+
+
+def test_live_projection_moves_with_game_progress():
+    tracker = _tracker()
+    pre = 12.0
+    early = tracker._calculate_live_projection(pre, 6.0, 15.0)
+    late = tracker._calculate_live_projection(pre, 6.0, 45.0)
+    done = tracker._calculate_live_projection(pre, 13.4, 61.0)
+    assert early != late
+    assert late >= 6.0
+    assert done == 13.4
+
+
+def test_live_projection_hot_pace_raises_finish():
+    tracker = _tracker()
+    pre = 10.0
+    hot = tracker._calculate_live_projection(pre, 12.0, 20.0)
+    assert hot > pre
+    assert hot >= 12.0

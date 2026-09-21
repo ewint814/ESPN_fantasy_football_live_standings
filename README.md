@@ -1,353 +1,142 @@
-# 🏈 Fantasy Football Live Tracker
+# Fantasy Football Live Tracker
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+Real-time ESPN Fantasy Football standings for a private league. The dashboard updates in place over Server-Sent Events (no full page reload).
 
-A real-time fantasy football score tracker that displays live scores, player statuses, and team rankings from your ESPN Fantasy Football league with **instant Server-Sent Events updates**.
+The live app is the original light table UI with two tabs: **Current Standings** and **Live Projections**. There is no Movement, Preview, or Sandbox tab.
 
-![Real-time Updates](https://img.shields.io/badge/updates-real--time-brightgreen)
-![Response Time](https://img.shields.io/badge/response-10s%20during%20games-blue)
+## What it shows
 
-## ✨ Features
+- **Current Standings** — rank, team, live score, who is currently playing, who has yet to play, top-6 / last badges
+- **Live Projections** — projected finish vs current score
+- **Currently playing** — taken from the ESPN NFL scoreboard and Sleeper live flags (not ESPN fantasy’s `game_played` heuristic). Overtime still counts as playing until the game is actually final
+- **Yet to play** — remaining starters with projection and kickoff time (Eastern)
+- **Score flash** — score cell blinks green/red when it changes
+- **Add to Home Screen** — bulletin on the dashboard plus a web app manifest (`FF Live`)
+- **Mobile** — rows stack on a phone so player names and kickoffs do not break mid-word
+- **Last updated** — Eastern Time
+- Auto-detected NFL season year and week
+- Error banner if ESPN credentials fail
 
-- ⚡ **Real-time updates every 10 seconds** during active games
-- 📡 **Server-Sent Events (SSE)** for instant push notifications
-- 🎯 **Smart update intervals** - aggressive during games, conservative off-hours
-- 📊 **Live projections** based on current performance
-- 📈 **Movement tracking** to see rank changes in real-time
-- 🎨 **Beautiful responsive UI** with modern design
-- 📱 **Mobile-optimized** interface
-- 🔴 **Live connection indicator** with pulsing dot
-- ⏰ **Eastern Time display** for "Last updated" timestamp
-- 🛡️ **Comprehensive error handling** with actionable user messages
-- 🏥 **Health check endpoint** for monitoring
-- 🔄 **Auto-detecting NFL year and week**
+Updates every **10 seconds** during game hours (12pm–11pm ET), **30 seconds** off-hours on game days, and **2 minutes** when no games are scheduled.
 
-## 🚀 Quick Start
+## Run locally
 
-### Prerequisites
+Needs Python 3.11+ and ESPN league cookies.
 
-- Python 3.11 or higher
-- ESPN Fantasy Football league access
-- ESPN account with active cookies
+```bash
+git clone https://github.com/ewint814/ESPN_fantasy_football_live_standings.git
+cd ESPN_fantasy_football_live_standings
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+# fill in ESPN_LEAGUE_ID, ESPN_S2, ESPN_SWID
+python fantasy_tracker_realtime.py
+```
 
-### Installation
+Open [http://localhost:5000](http://localhost:5000).
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/fantasy-football-tracker.git
-   cd fantasy-football-tracker
-   ```
+`fantasy_tracker.py` is only a compatibility wrapper that starts the same app (older Render start commands).
 
-2. **Create virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+## ESPN credentials
 
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+1. Log into [ESPN Fantasy Football](https://fantasy.espn.com/football)
+2. DevTools → Application / Storage → Cookies → `espn.com`
+3. Copy `espn_s2` and `SWID`
+4. League ID is in the URL: `...?leagueId=123456`
 
-4. **Configure environment**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your ESPN credentials (see below)
-   ```
-
-5. **Run the application**
-   ```bash
-   python fantasy_tracker_realtime.py
-   ```
-
-6. **Open in browser**
-   ```
-   http://localhost:5000
-   ```
-
-## 🔑 Getting ESPN Credentials
-
-To connect to your ESPN Fantasy Football league:
-
-1. Log into [ESPN Fantasy Football](https://fantasy.espn.com/football) in your browser
-2. Open Developer Tools (`F12`)
-3. Go to **Application** (Chrome) or **Storage** (Firefox) tab
-4. Click **Cookies** → `https://espn.com`
-5. Copy these values:
-   - `espn_s2` - Long string starting with "AE..."
-   - `SWID` - Format: `{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}`
-6. Get your **League ID** from the URL:
-   ```
-   https://fantasy.espn.com/football/league?leagueId=637021
-                                                      ^^^^^^ This is your League ID
-   ```
-
-Add these to your `.env` file:
 ```env
-ESPN_LEAGUE_ID=637021
-ESPN_S2=AExxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...
+ESPN_LEAGUE_ID=123456
+ESPN_S2=AE...
 ESPN_SWID={XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}
 PORT=5000
 ```
 
-## 🏗️ Project Structure
+Cookies typically expire every few weeks. If the dashboard errors or `/health` shows `connected: false`, refresh them in Render (or `.env`).
+
+## Project layout
 
 ```
-fantasy-football-tracker/
-├── src/
-│   ├── fantasy_tracker_realtime.py  # Main real-time application
-│   ├── config.py                    # Configuration management
-│   └── nfl_utils.py                 # NFL season utilities
-├── tests/
-│   └── test_app.py                  # Test suite
-├── requirements.txt                 # Production dependencies
-├── requirements-dev.txt             # Development dependencies
-├── pyproject.toml                   # Project configuration
-├── Dockerfile                       # Container configuration
-├── render.yaml                      # Render deployment config
-├── Procfile                         # Process configuration
-├── .env.example                     # Environment template
-├── LICENSE                          # MIT License
-└── README.md                        # This file
+fantasy_tracker_realtime.py   # Flask app, SSE, score classification
+fantasy_tracker.py            # thin wrapper that runs the realtime app
+templates/dashboard.html      # Current + Projected UI
+config.py                     # env / validation
+constants.py                  # update intervals, top-6 cutoff
+nfl_utils.py                  # NFL year / week helpers
+tests/test_game_status.py     # live / OT / Sleeper classification
+tests/test_app.py             # import / config / week checks
+render.yaml                   # Render service config
+Procfile                      # python fantasy_tracker_realtime.py
 ```
 
-## 📡 API Endpoints
+There is no `src/` package and no active Dockerfile (Render runs Python directly).
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Main dashboard with live scores |
-| `/api/scores` | GET | JSON API for scores data |
-| `/health` | GET | Health check and status |
-| `/stream` | GET | Server-Sent Events stream (real-time) |
+## Endpoints
 
-### Example: Health Check
+| Path | Description |
+|------|-------------|
+| `/` | Dashboard |
+| `/stream` | SSE score updates |
+| `/api/scores` | JSON scores |
+| `/health` | Liveness / ESPN connection |
+| `/manifest.webmanifest` | Add to Home Screen manifest |
 
 ```bash
 curl http://localhost:5000/health
 ```
 
-Response:
 ```json
 {
   "status": "healthy",
   "connected": true,
   "teams_count": 12,
-  "last_update": "2026-09-05T21:45:00",
+  "last_update": "2026-09-21T04:30:00",
   "nfl_year": 2026,
-  "current_week": 1,
+  "current_week": 2,
   "real_time": true
 }
 ```
 
-## 🎯 Update Intervals
+`/health` returns **503** until ESPN is connected and scores have loaded.
 
-The tracker intelligently adjusts update frequency based on game activity:
+## Deploy on Render
 
-| Condition | Update Interval | Use Case |
-|-----------|-----------------|----------|
-| **Active games** (12pm-11pm ET) | 10 seconds ⚡ | Real-time during games |
-| **Off-hours** (game days) | 30 seconds | Overnight on game days |
-| **No games scheduled** | 2 minutes | Off-season or bye weeks |
+1. Connect this GitHub repo
+2. **Build:** `pip install -r requirements.txt`
+3. **Start:** `python fantasy_tracker_realtime.py`
+4. Set `ESPN_LEAGUE_ID`, `ESPN_S2`, `ESPN_SWID`, and `PORT=5000`
 
-💰 **100% Free**: ESPN API has no rate limits, and Render's free tier covers 750 hours/month (24/7 coverage).
+`render.yaml` already has that start command.
 
-## 🐳 Docker Deployment
-
-### Build and Run
+## Tests
 
 ```bash
-# Build image
-docker build -t fantasy-tracker .
-
-# Run container
-docker run -p 5000:5000 --env-file .env fantasy-tracker
+python tests/test_app.py
+python -c "import tests.test_game_status as t
+[getattr(t, n)() for n in dir(t) if n.startswith('test_')]"
 ```
 
-### Docker Compose
-
-```yaml
-version: '3.8'
-services:
-  tracker:
-    build: .
-    ports:
-      - "5000:5000"
-    env_file:
-      - .env
-    restart: unless-stopped
-```
-
-## ☁️ Deploy to Render
-
-### One-Click Deploy
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com)
-
-### Manual Deploy
-
-1. Push code to GitHub
-2. Go to [Render Dashboard](https://dashboard.render.com)
-3. Click **New Web Service**
-4. Connect your repository
-5. Configure:
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `python fantasy_tracker_realtime.py`
-6. Add environment variables in Render dashboard:
-   - `ESPN_LEAGUE_ID`
-   - `ESPN_S2`
-   - `ESPN_SWID`
-   - `PORT=5000`
-7. Deploy!
-
-Your app will be live at `https://your-app-name.onrender.com`
-
-## 🧪 Testing
-
-### Run Tests
+With dev extras (`pip install -r requirements-dev.txt`):
 
 ```bash
-# Basic test suite
-python test_app.py
-
-# With pytest (dev dependencies required)
-pip install -r requirements-dev.txt
-pytest tests/ -v
-
-# With coverage
-pytest tests/ --cov=src --cov-report=html
+pytest tests/test_game_status.py -o addopts= -v
 ```
 
-### Test Coverage
+`pyproject.toml` still points pytest coverage at `src/`, which this repo does not use. Prefer the commands above.
 
-The test suite validates:
-- ✅ Module imports
-- ✅ NFL year detection (2026 season)
-- ✅ Week calculation logic
-- ✅ Configuration validation
-- ✅ Dependency installation
+## Troubleshooting
 
-## 🔧 Development
+| Symptom | What to do |
+|---------|------------|
+| Missing credentials | Set the three ESPN vars in `.env` or Render |
+| 401 / expired cookies | Refresh `ESPN_S2` and `ESPN_SWID` from espn.com |
+| 404 league not found | Check `ESPN_LEAGUE_ID` in the ESPN URL |
+| Loading spinner > 15s | Refresh; hit `/health` |
+| Currently Playing is empty during OT | Should stay filled from ESPN + Sleeper after the latest deploy; hard-refresh if Render has not finished |
+| Weird line breaks on a phone | Mobile stacking is on `main`; hard-refresh after deploy |
 
-### Setup Development Environment
+## License
 
-```bash
-# Install dev dependencies
-pip install -r requirements-dev.txt
+MIT — see [LICENSE](LICENSE).
 
-# Install pre-commit hooks
-pre-commit install
-
-# Run linter
-ruff check src/
-
-# Run type checker
-mypy src/
-```
-
-### Code Quality Tools
-
-- **Ruff** - Fast Python linter and formatter
-- **MyPy** - Static type checking
-- **Pytest** - Testing framework
-- **Pre-commit** - Git hooks for code quality
-
-## 🐛 Troubleshooting
-
-### Common Issues
-
-#### "Configuration Error: Missing ESPN_LEAGUE_ID"
-**Cause**: Environment variables not set  
-**Fix**: Add credentials to `.env` file or Render dashboard environment section
-
-#### "401 Unauthorized" or "Expired Cookies"
-**Cause**: ESPN cookies expired (typically every 2-3 weeks)  
-**Fix**: Get fresh `ESPN_S2` and `ESPN_SWID` cookies from ESPN.com
-
-#### "404 League Not Found"
-**Cause**: Wrong League ID  
-**Fix**: Verify League ID in your ESPN Fantasy URL
-
-#### "Stuck on Loading for 15+ seconds"
-**Cause**: ESPN API slow or network issues  
-**Fix**: Wait or refresh page; check `/health` endpoint
-
-#### No live scores showing
-**Cause**: Off-season or before first game  
-**Fix**: Normal behavior; scores populate when season starts
-
-### Debug Mode
-
-Enable detailed logging:
-```bash
-DEBUG=true python fantasy_tracker_realtime.py
-```
-
-### Check Logs
-
-```bash
-# View last 100 lines
-tail -f -n 100 app.log
-
-# Filter for errors
-grep "❌" app.log
-```
-
-## 📊 Monitoring
-
-### Health Check Monitoring
-
-Set up monitoring with services like:
-- [UptimeRobot](https://uptimerobot.com/)
-- [Pingdom](https://www.pingdom.com/)
-- [StatusCake](https://www.statuscake.com/)
-
-Configure to ping: `https://your-app.onrender.com/health`
-
-### Maintenance
-
-- 🔄 **Refresh ESPN cookies** every 2-3 weeks
-- 📈 **Monitor during first game day** to verify updates
-- 🏥 **Check health endpoint** periodically
-- 📝 **Review logs** for errors or warnings
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Follow existing code style (enforced by Ruff)
-- Add type hints to all functions
-- Write tests for new features
-- Update documentation as needed
-- Run `pre-commit` before committing
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Built with [Flask](https://flask.palletsprojects.com/)
-- Uses [espn-api](https://github.com/cwendt94/espn-api) Python wrapper
-- Deployed on [Render](https://render.com/)
-
-## 📞 Support
-
-- 📖 [Documentation](https://github.com/yourusername/fantasy-football-tracker/wiki)
-- 🐛 [Issue Tracker](https://github.com/yourusername/fantasy-football-tracker/issues)
-- 💬 [Discussions](https://github.com/yourusername/fantasy-football-tracker/discussions)
-
----
-
-**Made with ❤️ for Fantasy Football enthusiasts**
-
-Ready for the 2026 NFL season! 🏈
+Uses [Flask](https://flask.palletsprojects.com/), [espn-api](https://github.com/cwendt94/espn-api), the ESPN NFL scoreboard, and Sleeper scores. Hosted on [Render](https://render.com/).

@@ -331,6 +331,7 @@
             .standings td.team-cell {
                 display: inline;
                 font-size: 1em;
+                padding-right: 8px;
             }
             .standings td.score-cell {
                 display: block;
@@ -338,6 +339,7 @@
                 font-size: 1.15em;
                 line-height: 1.2;
                 text-align: right;
+                margin-left: 10px;
             }
             .standings td.current-score {
                 display: inline-block;
@@ -351,11 +353,15 @@
                 display: block;
                 clear: both;
             }
+            #projectedStandings .standings td.team-cell {
+                display: block;
+                padding-right: 0;
+            }
             #projectedStandings .standings td.score-cell {
                 float: none;
                 display: inline-block;
-                margin-right: 12px;
-                padding-top: 4px;
+                margin: 4px 12px 0 0;
+                padding-top: 0;
                 font-size: 1.05em;
             }
             #projectedStandings .standings td.score-cell::before,

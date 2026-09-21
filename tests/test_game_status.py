@@ -6,12 +6,15 @@ from fantasy_tracker_realtime import FantasyTracker
 
 
 def _tracker():
-    obj = SimpleNamespace(game_clocks={})
+    obj = SimpleNamespace(game_clocks={}, nfl_year=2026, current_week=2)
     obj._TEAM_ALIASES = FantasyTracker._TEAM_ALIASES
     obj._index_clock = FantasyTracker._index_clock.__get__(obj, FantasyTracker)
     obj._is_nfl_game_live = FantasyTracker._is_nfl_game_live.__get__(obj, FantasyTracker)
     obj._clock_for_team = FantasyTracker._clock_for_team.__get__(obj, FantasyTracker)
     obj._calculate_minutes_played = FantasyTracker._calculate_minutes_played.__get__(obj, FantasyTracker)
+    obj._sleeper_clock_from_game = FantasyTracker._sleeper_clock_from_game.__get__(obj, FantasyTracker)
+    obj._clocks_from_sleeper_scores = FantasyTracker._clocks_from_sleeper_scores.__get__(obj, FantasyTracker)
+    obj._merge_game_clocks = FantasyTracker._merge_game_clocks.__get__(obj, FantasyTracker)
     return obj
 
 
@@ -87,3 +90,94 @@ def test_minutes_played_overtime_clock():
     assert 64.0 <= mid_ot <= 66.0
     end_ot = tracker._calculate_minutes_played('0:00', 5, 'STATUS_IN_PROGRESS', 'in')
     assert 69.0 <= end_ot <= 71.0
+
+
+def test_sleeper_in_progress_is_live_even_if_espn_says_final():
+    clock = {
+        'espn_state': 'post',
+        'period': 5,
+        'status': 'STATUS_FINAL',
+        'short_detail': 'Final/OT',
+        'sleeper_in_progress': True,
+        'sleeper_is_over': False,
+        'sleeper_is_overtime': True,
+    }
+    assert _tracker()._is_nfl_game_live(clock) is True
+
+
+def test_sleeper_final_overtime_is_not_live():
+    clock = {
+        'espn_state': '',
+        'sleeper_in_progress': False,
+        'sleeper_is_over': True,
+        'sleeper_is_overtime': True,
+        'short_detail': 'F/OT',
+        'period': 5,
+    }
+    assert _tracker()._is_nfl_game_live(clock) is False
+
+
+def test_sleeper_clock_from_live_ot_game():
+    tracker = _tracker()
+    game = {
+        'status': 'in_game',
+        'metadata': {
+            'home_team': 'KC',
+            'away_team': 'IND',
+            'is_in_progress': True,
+            'is_over': False,
+            'is_overtime': True,
+            'quarter': 'OT',
+            'quarter_num': 5,
+            'time_remaining': '04:12',
+        },
+    }
+    clock = tracker._sleeper_clock_from_game(game)
+    assert clock['espn_state'] == 'in'
+    assert clock['sleeper_in_progress'] is True
+    assert clock['sleeper_is_overtime'] is True
+    assert tracker._is_nfl_game_live(clock) is True
+
+
+def test_merge_keeps_espn_live_if_sleeper_already_complete():
+    tracker = _tracker()
+    espn = {
+        'KC': {
+            'espn_state': 'in',
+            'period': 5,
+            'status': 'STATUS_IN_PROGRESS',
+            'short_detail': 'OT',
+        }
+    }
+    sleeper = {
+        'KC': {
+            'espn_state': 'post',
+            'sleeper_in_progress': False,
+            'sleeper_is_over': True,
+            'sleeper_is_overtime': True,
+        }
+    }
+    merged = tracker._merge_game_clocks(espn, sleeper)
+    assert merged['KC']['espn_state'] == 'in'
+    assert tracker._is_nfl_game_live(merged['KC']) is True
+
+
+def test_sleeper_was_alias_indexes_wsh():
+    tracker = _tracker()
+    scores = [{
+        'status': 'in_game',
+        'metadata': {
+            'home_team': 'DAL',
+            'away_team': 'WAS',
+            'is_in_progress': True,
+            'is_over': False,
+            'is_overtime': False,
+            'quarter': 'Q4',
+            'quarter_num': 4,
+            'time_remaining': '02:00',
+        },
+    }]
+    clocks = tracker._clocks_from_sleeper_scores(scores)
+    tracker.game_clocks = clocks
+    assert tracker._clock_for_team('WSH')['sleeper_in_progress'] is True
+    assert tracker._is_nfl_game_live(tracker._clock_for_team('WSH')) is True

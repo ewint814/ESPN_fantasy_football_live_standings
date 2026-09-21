@@ -148,7 +148,13 @@ class FantasyTracker:
             return 1
     
     def _get_nfl_game_clocks(self) -> Dict[str, Dict[str, Any]]:
-        """Get live game clock data."""
+        """Merge ESPN scoreboard + Sleeper live flags for currently-playing."""
+        espn_clocks = self._get_espn_game_clocks()
+        sleeper_clocks = self._get_sleeper_game_clocks()
+        return self._merge_game_clocks(espn_clocks, sleeper_clocks)
+
+    def _get_espn_game_clocks(self) -> Dict[str, Dict[str, Any]]:
+        """Live clocks from the ESPN NFL scoreboard."""
         try:
             response = requests.get(
                 "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard",
@@ -197,6 +203,108 @@ class FantasyTracker:
             
         except Exception:
             return {}
+
+    def _get_sleeper_game_clocks(self) -> Dict[str, Dict[str, Any]]:
+        """Live in-progress / overtime flags from Sleeper scores."""
+        try:
+            payload = {
+                'operationName': 'batch_scores',
+                'variables': {},
+                'query': (
+                    'query batch_scores { scores: scores(sport: "nfl", season_type: "regular", '
+                    f'season: "{self.nfl_year}", week: {int(self.current_week)}) '
+                    '{ date game_id status week metadata } }'
+                ),
+            }
+            response = requests.post(
+                'https://api.sleeper.app/graphql',
+                json=payload,
+                timeout=10,
+                headers={'Content-Type': 'application/json'},
+            )
+            if response.status_code != 200:
+                return {}
+            scores = (response.json() or {}).get('data', {}).get('scores') or []
+            return self._clocks_from_sleeper_scores(scores)
+        except Exception:
+            return {}
+
+    def _clocks_from_sleeper_scores(self, scores: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        """Turn Sleeper score objects into the same per-team clock map ESPN uses."""
+        game_clocks: Dict[str, Dict[str, Any]] = {}
+        for game in scores:
+            clock_info = self._sleeper_clock_from_game(game)
+            if not clock_info:
+                continue
+            metadata = game.get('metadata') or {}
+            self._index_clock(game_clocks, metadata.get('home_team', ''), clock_info)
+            self._index_clock(game_clocks, metadata.get('away_team', ''), clock_info)
+        return game_clocks
+
+    def _sleeper_clock_from_game(self, game: Dict[str, Any]) -> Dict[str, Any]:
+        """Map one Sleeper game to clock fields, including live OT flags."""
+        metadata = game.get('metadata') or {}
+        in_progress = bool(metadata.get('is_in_progress'))
+        is_over = bool(metadata.get('is_over'))
+        is_overtime = bool(metadata.get('is_overtime'))
+        if in_progress:
+            state = 'in'
+        elif is_over or str(game.get('status') or '').lower() == 'complete':
+            state = 'post'
+        else:
+            state = 'pre'
+
+        quarter_num = metadata.get('quarter_num')
+        try:
+            period = int(quarter_num) if quarter_num not in ('', None) else 0
+        except (TypeError, ValueError):
+            period = 0
+        if not period:
+            if is_overtime:
+                period = 5
+            elif is_over:
+                period = 4
+
+        clock = str(metadata.get('time_remaining') or '0:00')
+        status = str(game.get('status') or metadata.get('status') or '')
+        short_detail = str(metadata.get('quarter') or '')
+        minutes_played = self._calculate_minutes_played(clock, period or 1, status, state)
+        return {
+            'clock': clock,
+            'period': period,
+            'status': status,
+            'espn_state': state,
+            'short_detail': short_detail,
+            'minutes_played': minutes_played,
+            'game_progress': min(minutes_played / 60.0, 1.0),
+            'sleeper_in_progress': in_progress,
+            'sleeper_is_over': is_over,
+            'sleeper_is_overtime': is_overtime,
+        }
+
+    def _merge_game_clocks(
+        self,
+        espn_clocks: Dict[str, Dict[str, Any]],
+        sleeper_clocks: Dict[str, Dict[str, Any]],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Prefer ESPN clocks; attach Sleeper live flags. Use Sleeper if ESPN missed a team."""
+        merged: Dict[str, Dict[str, Any]] = {}
+        for team in set(espn_clocks) | set(sleeper_clocks):
+            espn = espn_clocks.get(team) or {}
+            sleeper = sleeper_clocks.get(team) or {}
+            info = dict(espn) if espn else dict(sleeper)
+            if sleeper:
+                info['sleeper_in_progress'] = bool(sleeper.get('sleeper_in_progress'))
+                info['sleeper_is_over'] = bool(sleeper.get('sleeper_is_over'))
+                info['sleeper_is_overtime'] = bool(sleeper.get('sleeper_is_overtime'))
+                if not info.get('espn_state'):
+                    info['espn_state'] = sleeper.get('espn_state', '')
+                if not info.get('period') and sleeper.get('period'):
+                    info['period'] = sleeper['period']
+                if not info.get('short_detail') and sleeper.get('short_detail'):
+                    info['short_detail'] = sleeper['short_detail']
+            merged[team] = info
+        return merged
     
     _TEAM_ALIASES = {
         'WAS': 'WSH', 'WSH': 'WAS',
@@ -219,16 +327,16 @@ class FantasyTracker:
     def _is_nfl_game_live(self, clock_data: Dict[str, Any]) -> bool:
         """True when the NFL game is in progress, including overtime.
 
-        espn-api sets game_played=100 once kickoff was 3+ hours ago, which
-        is usually true during Sunday/Monday night overtime. Scoreboard
-        state/period must win over that heuristic.
+        ESPN scoreboard + Sleeper live flags both count. espn-api's
+        game_played=100 (kickoff + 3 hours) is ignored.
+        Live wins if either source still says the game is going.
         """
         if not clock_data:
             return False
-        if clock_data.get('espn_state') == 'post':
-            return False
-        if clock_data.get('espn_state') == 'in':
+        if clock_data.get('sleeper_in_progress') or clock_data.get('espn_state') == 'in':
             return True
+        if clock_data.get('espn_state') == 'post' or clock_data.get('sleeper_is_over'):
+            return False
         status = str(clock_data.get('status') or '').lower()
         detail = str(clock_data.get('short_detail') or '').lower()
         if 'final' in status or 'final' in detail:
@@ -236,6 +344,8 @@ class FantasyTracker:
         if 'progress' in status or 'halftime' in status:
             return True
         if (clock_data.get('period') or 0) >= 5:
+            return True
+        if clock_data.get('sleeper_is_overtime') and not clock_data.get('sleeper_is_over'):
             return True
         if 'ot' in detail:
             return True

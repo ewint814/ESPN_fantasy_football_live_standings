@@ -318,31 +318,42 @@ class FantasyTracker:
                         
                         # Better game status detection using multiple indicators
                         game_played = getattr(player, 'game_played', None)
-                        play_percentage = getattr(player, 'playedPercentage', 0)
                         
                         # Log player status for debugging (only if points or projection exists)
                         if player_points > 0 or pre_game_projection > 0:
                             logger.debug(f"Player: {player_name}, Points: {player_points}, "
-                                       f"Proj: {pre_game_projection}, game_played: {game_played}, "
-                                       f"play%: {play_percentage}")
+                                       f"Proj: {pre_game_projection}, game_played: {game_played}")
                         
-                        # Determine player status more reliably
-                        if play_percentage == 0 or (game_played == 0 and player_points == 0):
-                            # Player hasn't started yet
-                            yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
-                            projected_total += pre_game_projection
-                        elif play_percentage == 100 or game_played in (100, 2):
-                            # Player's game is finished
-                            finished_playing.append(f"{player_name} ({player_points:.1f})")
-                            projected_total += player_points
-                        elif 0 < play_percentage < 100 or game_played == 1 or (player_points > 0 and play_percentage < 100):
-                            # Player is currently playing
-                            currently_playing.append(f"{player_name} ({player_points:.1f})")
-                            projected_total += live_projection
+                        # Determine player status - simplified logic based on what actually works
+                        # If a player has points, they've at least started playing
+                        if player_points > 0:
+                            # Player is playing or has finished
+                            if game_played in (100, 2):
+                                # Game is finished
+                                finished_playing.append(f"{player_name} ({player_points:.1f})")
+                                projected_total += player_points
+                            else:
+                                # Currently playing
+                                currently_playing.append(f"{player_name} ({player_points:.1f})")
+                                projected_total += live_projection
                         else:
-                            # Default: treat as yet to play if uncertain
-                            yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
-                            projected_total += pre_game_projection
+                            # No points yet - could be yet to play or finished with 0
+                            if game_played == 0:
+                                # Definitely hasn't played yet
+                                yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
+                                projected_total += pre_game_projection
+                            elif game_played in (100, 2):
+                                # Game finished with 0 points
+                                finished_playing.append(f"{player_name} (0.0)")
+                                projected_total += player_points
+                            elif game_played == 1:
+                                # Currently playing with 0 points
+                                currently_playing.append(f"{player_name} (0.0)")
+                                projected_total += live_projection
+                            else:
+                                # Unclear status, assume yet to play
+                                yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
+                                projected_total += pre_game_projection
                     
                     teams_data.append({
                         'team_name': team_name,

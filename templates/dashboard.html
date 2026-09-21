@@ -333,9 +333,8 @@
         }
 
         function rebuildTables(scores) {
-            // This would rebuild the tables - for now just reload
-            // In production, you'd update DOM elements directly for smooth transitions
-            location.reload();
+            // Disabled auto-reload - user can manually refresh to see updates
+            console.log('📊 New scores available - refresh page to see updates');
         }
 
         // Show error if loading takes too long
@@ -367,10 +366,10 @@
             }
         }, 15000);  // Check after 15 seconds
 
-        // Connect to real-time stream on page load
-        window.addEventListener('DOMContentLoaded', function() {
-            connectSSE();
-        });
+        // Disabled SSE auto-connection - scores update in background, user manually refreshes
+        // window.addEventListener('DOMContentLoaded', function() {
+        //     connectSSE();
+        // });
     </script>
 </head>
 <body>

@@ -260,26 +260,7 @@
         .top-scorer-badge { background: #ffd700; color: #333; }
         .parlay-badge { background: #dc3545; }
 
-        .movement-scores {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 600;
-        }
-
         .current-score { color: #dc3545; }
-        .arrow { color: #6c757d; }
-        .projected-score { color: #007bff; }
-
-        .movement-cell {
-            text-align: center;
-            font-weight: 700;
-            font-size: 1.1em;
-        }
-
-        .movement-up { color: #28a745; }
-        .movement-down { color: #dc3545; }
-        .movement-same { color: #6c757d; }
 
         .loading {
             text-align: center;
@@ -320,19 +301,12 @@
             updateView();
         }
 
-        function showMovement() {
-            currentView = 'movement';
-            updateView();
-        }
-
         function updateView() {
             document.getElementById('currentStandings').style.display = currentView === 'current' ? 'block' : 'none';
             document.getElementById('projectedStandings').style.display = currentView === 'projected' ? 'block' : 'none';
-            document.getElementById('movementStandings').style.display = currentView === 'movement' ? 'block' : 'none';
 
             document.getElementById('currentBtn').classList.toggle('active', currentView === 'current');
             document.getElementById('projectedBtn').classList.toggle('active', currentView === 'projected');
-            document.getElementById('movementBtn').classList.toggle('active', currentView === 'movement');
         }
 
         // Real-time updates using Server-Sent Events
@@ -415,7 +389,6 @@
             const flashes = scoreFlashes(scores);
             updateCurrentStandings(scores, flashes);
             updateProjectedStandings(scores, flashes);
-            updateMovementStandings(scores, flashes);
         }
 
         function updateCurrentStandings(scores, flashes) {
@@ -481,50 +454,6 @@
                     <td class="team-cell">${team.team_name}</td>
                     <td class="score-cell">${team.projected_score.toFixed(1)}</td>
                     <td class="current-score ${flashClass}">${team.live_score.toFixed(1)}</td>
-                    <td class="status-cell">${statusBadge}</td>
-                `;
-                tbody.appendChild(row);
-            });
-        }
-
-        function updateMovementStandings(scores, flashes) {
-            const tbody = document.querySelector('#movementStandings tbody');
-            if (!tbody) return;
-            
-            tbody.innerHTML = '';
-            scores.forEach(team => {
-                const row = document.createElement('tr');
-                row.className = team.is_current_top6 ? 'top6-row' : '';
-                const flashClass = (flashes && flashes[team.team_name]) || '';
-                
-                const movement = team.rank - team.projected_rank;
-                let movementHTML = '';
-                if (movement > 0) {
-                    movementHTML = `<span class="movement-up">↑${movement}</span>`;
-                } else if (movement < 0) {
-                    movementHTML = `<span class="movement-down">↓${Math.abs(movement)}</span>`;
-                } else {
-                    movementHTML = '<span class="movement-same">—</span>';
-                }
-                
-                let statusBadge = '';
-                if (team.rank === 1) {
-                    statusBadge = '<span class="status-badge top-scorer-badge">TOP</span>';
-                } else if (team.rank === scores.length) {
-                    statusBadge = '<span class="status-badge parlay-badge">LAST</span>';
-                } else if (team.is_current_top6) {
-                    statusBadge = '<span class="status-badge current-badge">TOP 6</span>';
-                }
-                
-                row.innerHTML = `
-                    <td class="rank-cell">${team.rank}</td>
-                    <td class="team-cell">${team.team_name}</td>
-                    <td class="movement-scores">
-                        <span class="current-score ${flashClass}">${team.live_score.toFixed(1)}</span>
-                        <span class="arrow">→</span>
-                        <span class="projected-score">${team.projected_score.toFixed(1)}</span>
-                    </td>
-                    <td class="movement-cell">${movementHTML}</td>
                     <td class="status-cell">${statusBadge}</td>
                 `;
                 tbody.appendChild(row);
@@ -607,7 +536,6 @@
         <div class="toggle-container">
             <button id="currentBtn" class="toggle-btn active" onclick="showCurrent()">Current Standings</button>
             <button id="projectedBtn" class="toggle-btn" onclick="showProjected()">Live Projections</button>
-            <button id="movementBtn" class="toggle-btn" onclick="showMovement()">Movement</button>
         </div>
 
         <div id="currentStandings" class="standings-table">
@@ -688,52 +616,6 @@
                                 <span class="status-badge parlay-badge">LAST</span>
                             {% elif team.is_projected_top6 %}
                                 <span class="status-badge projected-badge">TOP 6</span>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <div id="movementStandings" class="standings-table" style="display: none;">
-            <table class="standings">
-                <thead>
-                    <tr>
-                        <th>Current Rank</th>
-                        <th>Team</th>
-                        <th>Current → Projected</th>
-                        <th>Movement</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for team in scores %}
-                    {% set movement = team.rank - team.projected_rank %}
-                    <tr class="{{ 'top6-row' if team.is_current_top6 else '' }}">
-                        <td class="rank-cell">{{ team.rank }}</td>
-                        <td class="team-cell">{{ team.team_name }}</td>
-                        <td class="movement-scores">
-                            <span class="current-score">{{ "%.1f"|format(team.live_score) }}</span>
-                            <span class="arrow">→</span>
-                            <span class="projected-score">{{ "%.1f"|format(team.projected_score) }}</span>
-                        </td>
-                        <td class="movement-cell">
-                            {% if movement > 0 %}
-                                <span class="movement-up">↑{{ movement }}</span>
-                            {% elif movement < 0 %}
-                                <span class="movement-down">↓{{ movement|abs }}</span>
-                            {% else %}
-                                <span class="movement-same">—</span>
-                            {% endif %}
-                        </td>
-                        <td class="status-cell">
-                            {% if team.rank == 1 %}
-                                <span class="status-badge top-scorer-badge">TOP</span>
-                            {% elif team.rank == scores|length %}
-                                <span class="status-badge parlay-badge">LAST</span>
-                            {% elif team.is_current_top6 %}
-                                <span class="status-badge current-badge">TOP 6</span>
                             {% endif %}
                         </td>
                     </tr>

@@ -564,6 +564,21 @@ class FantasyTracker:
         @self.app.route('/')
         def dashboard() -> str:
             return self._render_dashboard()
+
+        @self.app.route('/manifest.webmanifest')
+        def manifest() -> Response:
+            payload = {
+                'name': 'Fantasy Football LIVE Tracker',
+                'short_name': 'FF Live',
+                'start_url': '/',
+                'display': 'standalone',
+                'background_color': '#f5f5f5',
+                'theme_color': '#333333',
+            }
+            return Response(
+                json.dumps(payload),
+                mimetype='application/manifest+json'
+            )
         
         @self.app.route('/api/scores')
         def api_scores() -> Response:

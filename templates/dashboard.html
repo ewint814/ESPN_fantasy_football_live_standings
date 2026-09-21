@@ -74,21 +74,26 @@
             color: #888;
         }
 
-        .homescreen-hint {
-            margin-top: 8px;
-            font-size: 0.82em;
-            color: #666;
+        .homescreen-box {
+            background: #eef6ff;
+            border: 1px solid #b6d4fe;
+            border-radius: 6px;
+            padding: 12px 14px;
+            margin-bottom: 14px;
+            text-align: left;
+            font-size: 0.9em;
+            color: #084298;
+            line-height: 1.45;
         }
 
-        .homescreen-hint button {
-            background: #333;
+        .homescreen-box button {
+            margin-top: 8px;
+            background: #007bff;
             color: white;
             border: none;
-            padding: 5px 10px;
+            padding: 8px 14px;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 0.85em;
-            margin-right: 8px;
         }
 
         .kickoff-time {
@@ -520,10 +525,6 @@
         {% if last_update %}
         <div class="last-update">Last updated: {{ last_update.astimezone(eastern).strftime('%I:%M:%S %p ET') }}</div>
         {% endif %}
-        <div class="homescreen-hint">
-            <button type="button" id="installAppBtn" onclick="installApp()" style="display:none;">Add to Home Screen</button>
-            <span>Phone: Share → Add to Home Screen</span>
-        </div>
         {% if api_error %}
         <div class="api-error">{{ api_error }}</div>
         {% else %}
@@ -532,6 +533,11 @@
     </div>
 
     <div class="container">
+        <div class="homescreen-box">
+            <strong>Add to Home Screen</strong> — iPhone: Share → Add to Home Screen. Android: use the button if it appears, or browser menu → Install / Add to Home screen.
+            <br>
+            <button type="button" id="installAppBtn" onclick="installApp()" style="display:none;">Install app</button>
+        </div>
         {% if scores %}
         <div class="toggle-container">
             <button id="currentBtn" class="toggle-btn active" onclick="showCurrent()">Current Standings</button>

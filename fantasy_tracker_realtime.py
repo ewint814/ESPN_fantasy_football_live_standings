@@ -171,54 +171,125 @@ class FantasyTracker:
                 team2 = competitors[1].get('team', {}).get('abbreviation', '')
                 
                 status = game.get('status', {})
+                status_type = status.get('type', {}) or {}
                 clock = status.get('displayClock', '0:00')
                 period = status.get('period', 1)
-                game_status = status.get('type', {}).get('name', 'unknown')
+                game_status = status_type.get('name', 'unknown')
+                espn_state = str(status_type.get('state', '')).lower()  # pre, in, post
+                short_detail = status_type.get('shortDetail', '') or status_type.get('detail', '')
                 
-                minutes_played = self._calculate_minutes_played(clock, period, game_status)
+                minutes_played = self._calculate_minutes_played(clock, period, game_status, espn_state)
                 
                 clock_info = {
                     'clock': clock,
                     'period': period,
                     'status': game_status,
+                    'espn_state': espn_state,
+                    'short_detail': short_detail,
                     'minutes_played': minutes_played,
                     'game_progress': min(minutes_played / 60.0, 1.0)
                 }
                 
-                if team1:
-                    game_clocks[team1] = clock_info
-                if team2:
-                    game_clocks[team2] = clock_info
+                self._index_clock(game_clocks, team1, clock_info)
+                self._index_clock(game_clocks, team2, clock_info)
             
             return game_clocks
             
         except Exception:
             return {}
     
-    def _calculate_minutes_played(self, clock: str, period: int, status: str) -> float:
+    _TEAM_ALIASES = {
+        'WAS': 'WSH', 'WSH': 'WAS',
+        'LA': 'LAR', 'LAR': 'LA',
+        'JAC': 'JAX', 'JAX': 'JAC',
+    }
+
+    def _index_clock(self, dest: Dict[str, Dict[str, Any]], abbr: str, clock_info: Dict[str, Any]) -> None:
+        """Store scoreboard clock under a team abbr and common aliases."""
+        if not abbr:
+            return
+        keys = {abbr, abbr.upper()}
+        alias = self._TEAM_ALIASES.get(abbr.upper())
+        if alias:
+            keys.add(alias)
+            keys.add(alias.upper())
+        for key in keys:
+            dest[key] = clock_info
+
+    def _is_nfl_game_live(self, clock_data: Dict[str, Any]) -> bool:
+        """True when the NFL game is in progress, including overtime.
+
+        espn-api sets game_played=100 once kickoff was 3+ hours ago, which
+        is usually true during Sunday/Monday night overtime. Scoreboard
+        state/period must win over that heuristic.
+        """
+        if not clock_data:
+            return False
+        if clock_data.get('espn_state') == 'post':
+            return False
+        if clock_data.get('espn_state') == 'in':
+            return True
+        status = str(clock_data.get('status') or '').lower()
+        detail = str(clock_data.get('short_detail') or '').lower()
+        if 'final' in status or 'final' in detail:
+            return False
+        if 'progress' in status or 'halftime' in status:
+            return True
+        if (clock_data.get('period') or 0) >= 5:
+            return True
+        if 'ot' in detail:
+            return True
+        return False
+
+    def _clock_for_team(self, pro_team: str) -> Dict[str, Any]:
+        """Look up scoreboard clock data for an NFL team abbreviation."""
+        if not pro_team or str(pro_team).strip() in ('', 'None'):
+            return {}
+        if pro_team in self.game_clocks:
+            return self.game_clocks[pro_team]
+        target = str(pro_team).upper()
+        for key in (target, self._TEAM_ALIASES.get(target, '')):
+            if not key:
+                continue
+            if key in self.game_clocks:
+                return self.game_clocks[key]
+            for abbr, info in self.game_clocks.items():
+                if str(abbr).upper() == key:
+                    return info
+        return {}
+
+    def _calculate_minutes_played(self, clock: str, period: int, status: str, espn_state: str = '') -> float:
         """Calculate minutes played in game."""
         try:
-            status_lower = status.lower()
+            status_lower = (status or '').lower()
+            state = (espn_state or '').lower()
             
-            if any(word in status_lower for word in ['final', 'finished', 'end']):
-                return 60.0
+            # Do not treat STATUS_END_PERIOD as final — that fires between quarters and before OT
+            if state == 'post' or 'final' in status_lower:
+                return 70.0 if 'overtime' in status_lower else 60.0
             
-            if any(word in status_lower for word in ['scheduled', 'pre', 'upcoming']):
+            if state == 'pre' or any(word in status_lower for word in ['scheduled', 'pregame', 'upcoming']):
                 return 0.0
             
-            remaining_in_quarter = 0.0
+            remaining_in_period = 0.0
             if ':' in clock:
                 parts = clock.split(':')
                 if len(parts) == 2:
                     minutes = int(parts[0])
                     seconds = int(parts[1])
-                    remaining_in_quarter = minutes + seconds / 60.0
+                    remaining_in_period = minutes + seconds / 60.0
+            
+            # NFL OT is period 5+, 10-minute periods
+            period_length = 10.0 if period >= 5 else 15.0
+            regulation_minutes = 60.0
+            if period >= 5:
+                ot_completed = max(0, period - 5)
+                minutes_in_ot = period_length - remaining_in_period
+                return regulation_minutes + (ot_completed * period_length) + minutes_in_ot
             
             completed_quarters = max(0, period - 1)
-            minutes_in_current_quarter = 15.0 - remaining_in_quarter
-            total_minutes = (completed_quarters * 15.0) + minutes_in_current_quarter
-            
-            return min(total_minutes, 60.0)
+            minutes_in_current_quarter = 15.0 - remaining_in_period
+            return (completed_quarters * 15.0) + minutes_in_current_quarter
             
         except Exception:
             return 30.0
@@ -240,7 +311,7 @@ class FantasyTracker:
             if pre_game <= 0:
                 return max(current, 0.0)
             
-            # Game is essentially over (>= 55 minutes)
+            # Game is essentially over (>= 55 minutes of regulation)
             if minutes >= 55:
                 return current
             
@@ -349,27 +420,44 @@ class FantasyTracker:
                             0.0
                         )
                         
-                        pro_team = getattr(player, 'proTeam', '')
+                        pro_team = getattr(player, 'proTeam', None) or getattr(player, 'pro_team', '') or ''
                         
-                        clock_data = self.game_clocks.get(pro_team, {})
+                        clock_data = self._clock_for_team(pro_team)
                         minutes_played = clock_data.get('minutes_played', 30.0)
+                        espn_state = clock_data.get('espn_state', '')  # pre, in, post
                         
                         live_projection = self._calculate_live_projection(
                             pre_game_projection, player_points, minutes_played
                         )
                         
-                        # Better game status detection using multiple indicators
                         game_played = getattr(player, 'game_played', None)
                         
-                        # Log player status for debugging (only if points or projection exists)
                         if player_points > 0 or pre_game_projection > 0:
-                            logger.debug(f"Player: {player_name}, Points: {player_points}, "
-                                       f"Proj: {pre_game_projection}, game_played: {game_played}")
+                            logger.debug(
+                                f"Player: {player_name}, Points: {player_points}, "
+                                f"Proj: {pre_game_projection}, game_played: {game_played}, "
+                                f"nfl_state: {espn_state}, period: {clock_data.get('period')}"
+                            )
                         
-                        # Determine player status - simplified logic based on what actually works
-                        # If a player has points, they've at least started playing
-                        if player_points > 0:
-                            # Player is playing or has finished
+                        # Scoreboard 'in' includes overtime. ESPN fantasy often marks
+                        # game_played=100 after regulation even when OT is still going.
+                        if self._is_nfl_game_live(clock_data):
+                            currently_playing.append(f"{player_name} ({player_points:.1f})")
+                            currently_playing_details.append(
+                                self._player_detail(player, player_points, live_projection)
+                            )
+                            projected_total += live_projection if player_points or minutes_played > 0 else pre_game_projection
+                        elif espn_state == 'pre':
+                            yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
+                            yet_to_play_details.append(
+                                self._player_detail(player, player_points, pre_game_projection)
+                            )
+                            projected_total += pre_game_projection
+                            remaining_projection += float(pre_game_projection or 0.0)
+                        elif espn_state == 'post':
+                            finished_playing.append(f"{player_name} ({player_points:.1f})")
+                            projected_total += player_points
+                        elif player_points > 0:
                             if game_played in (100, 2):
                                 finished_playing.append(f"{player_name} ({player_points:.1f})")
                                 projected_total += player_points

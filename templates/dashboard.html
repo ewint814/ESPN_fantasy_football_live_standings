@@ -319,48 +319,63 @@
             .standings td {
                 padding: 0;
                 font-size: 0.95em;
-            }
-            .rank-cell, .score-cell, .team-cell, .status-cell, .players-cell, .current-score {
                 width: auto;
                 max-width: none;
                 text-align: left;
             }
-            .rank-cell {
+            .standings td.rank-cell {
                 display: inline;
                 font-size: 0.95em;
                 margin-right: 6px;
             }
-            .team-cell {
+            .standings td.team-cell {
                 display: inline;
                 font-size: 1em;
             }
-            .score-cell, .current-score {
+            .standings td.score-cell {
+                display: block;
                 float: right;
                 font-size: 1.15em;
                 line-height: 1.2;
+                text-align: right;
+            }
+            .standings td.current-score {
+                display: inline-block;
+                float: none;
+                font-size: 1.05em;
+                margin-right: 12px;
+                padding-top: 4px;
             }
             .standings tbody tr::after {
                 content: "";
                 display: block;
                 clear: both;
             }
-            #projectedStandings .score-cell::before,
-            .current-score::before {
+            #projectedStandings .standings td.score-cell {
+                float: none;
+                display: inline-block;
+                margin-right: 12px;
+                padding-top: 4px;
+                font-size: 1.05em;
+            }
+            #projectedStandings .standings td.score-cell::before,
+            .standings td.current-score::before {
                 font-size: 0.65em;
                 font-weight: 600;
                 color: #999;
                 letter-spacing: 0.03em;
                 vertical-align: middle;
             }
-            #projectedStandings .score-cell::before { content: "proj "; }
-            .current-score::before { content: "now "; }
-            .status-cell { display: none; }
-            .players-cell {
+            #projectedStandings .standings td.score-cell::before { content: "proj "; }
+            .standings td.current-score::before { content: "now "; }
+            .standings td.status-cell { display: none; }
+            .standings td.players-cell {
+                display: block;
                 clear: both;
                 padding-top: 8px;
             }
-            .players-cell + .players-cell { padding-top: 6px; }
-            .players-cell::before {
+            .standings td.players-cell + .players-cell { padding-top: 6px; }
+            .standings td.players-cell::before {
                 content: attr(data-label);
                 display: block;
                 font-size: 0.68em;

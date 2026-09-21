@@ -224,20 +224,48 @@ class FantasyTracker:
             return 30.0
     
     def _calculate_live_projection(self, pre_game: float, current: float, minutes: float) -> float:
-        """Calculate live projection."""
+        """
+        Calculate live projection based on current performance.
+        
+        Args:
+            pre_game: Pre-game projected points
+            current: Current points scored
+            minutes: Minutes played in the game
+            
+        Returns:
+            Projected final score
+        """
         try:
-            if minutes >= 60:
+            # If no pre-game projection, use current points
+            if pre_game <= 0:
+                return max(current, 0.0)
+            
+            # Game is essentially over (>= 55 minutes)
+            if minutes >= 55:
                 return current
+            
+            # Game just started (<= 5 minutes), trust pre-game projection
             if minutes <= 5:
                 return pre_game
             
+            # Calculate scoring rate and project to full game
             scoring_rate = current / minutes
             projected_final = scoring_rate * 60
             
-            return max(projected_final, pre_game * 0.5)
+            # Don't project less than 50% of pre-game expectation (floor)
+            # unless player is actually underperforming that badly
+            floor = pre_game * 0.5
             
-        except Exception:
-            return pre_game
+            # Weight between projection and current pace based on time played
+            # More time played = trust current pace more
+            time_weight = min(minutes / 60, 0.8)  # Cap at 80% weight
+            weighted_projection = (projected_final * time_weight) + (pre_game * (1 - time_weight))
+            
+            return max(weighted_projection, floor, current)
+            
+        except Exception as e:
+            logger.debug(f"Projection calculation error: {e}, returning pre_game: {pre_game}")
+            return max(pre_game, current, 0.0)
     
     def _get_live_scores(self) -> List[Dict[str, Any]]:
         """Fetch current live scores."""
@@ -270,7 +298,15 @@ class FantasyTracker:
                         total_starters += 1
                         player_name = getattr(player, 'name', 'Unknown')
                         player_points = getattr(player, 'points', 0.0)
-                        pre_game_projection = getattr(player, 'projected_points', 0.0)
+                        
+                        # Try multiple projection attributes (ESPN API inconsistency)
+                        pre_game_projection = (
+                            getattr(player, 'projected_points', None) or
+                            getattr(player, 'projected_avg_points', None) or
+                            getattr(player, 'avg_points', None) or
+                            0.0
+                        )
+                        
                         pro_team = getattr(player, 'proTeam', '')
                         
                         clock_data = self.game_clocks.get(pro_team, {})
@@ -280,18 +316,31 @@ class FantasyTracker:
                             pre_game_projection, player_points, minutes_played
                         )
                         
+                        # Better game status detection using multiple indicators
                         game_played = getattr(player, 'game_played', None)
+                        play_percentage = getattr(player, 'playedPercentage', 0)
                         
-                        if game_played == 0:
+                        # Log player status for debugging (only if points or projection exists)
+                        if player_points > 0 or pre_game_projection > 0:
+                            logger.debug(f"Player: {player_name}, Points: {player_points}, "
+                                       f"Proj: {pre_game_projection}, game_played: {game_played}, "
+                                       f"play%: {play_percentage}")
+                        
+                        # Determine player status more reliably
+                        if play_percentage == 0 or (game_played == 0 and player_points == 0):
+                            # Player hasn't started yet
                             yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
                             projected_total += pre_game_projection
-                        elif game_played in (100, 2):
+                        elif play_percentage == 100 or game_played in (100, 2):
+                            # Player's game is finished
                             finished_playing.append(f"{player_name} ({player_points:.1f})")
                             projected_total += player_points
-                        elif game_played == 1:
+                        elif 0 < play_percentage < 100 or game_played == 1 or (player_points > 0 and play_percentage < 100):
+                            # Player is currently playing
                             currently_playing.append(f"{player_name} ({player_points:.1f})")
                             projected_total += live_projection
                         else:
+                            # Default: treat as yet to play if uncertain
                             yet_to_play.append(f"{player_name} (proj: {pre_game_projection:.1f})")
                             projected_total += pre_game_projection
                     

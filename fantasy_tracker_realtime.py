@@ -30,6 +30,7 @@ from constants import (
     MAX_CONSECUTIVE_FAILURES,
     RETRY_BASE_DELAY,
     RETRY_MAX_DELAY,
+    NON_STARTER_SLOTS,
 )
 
 # Load environment variables
@@ -466,6 +467,19 @@ class FantasyTracker:
             injury = ''
         return {'on_bye': on_bye, 'injury': injury or ''}
 
+    def _is_starter_slot(self, player: Any) -> bool:
+        """False for bench and IR slots — they are not yet-to-play starters."""
+        slot = str(
+            getattr(player, 'slot_position', None)
+            or getattr(player, 'lineupSlot', None)
+            or ''
+        ).strip().upper()
+        if not slot:
+            return True
+        if slot in NON_STARTER_SLOTS or slot.startswith('IR'):
+            return False
+        return True
+
     def _player_detail(self, player: Any, points: float, projection: float) -> Dict[str, Any]:
         flags = self._player_status_flags(player)
         return {
@@ -505,7 +519,7 @@ class FantasyTracker:
                     remaining_projection = 0.0
                     
                     for player in lineup:
-                        if player.slot_position == "BE":
+                        if not self._is_starter_slot(player):
                             continue
                         
                         total_starters += 1

@@ -16,6 +16,7 @@ def _tracker():
     obj._clocks_from_sleeper_scores = FantasyTracker._clocks_from_sleeper_scores.__get__(obj, FantasyTracker)
     obj._merge_game_clocks = FantasyTracker._merge_game_clocks.__get__(obj, FantasyTracker)
     obj._calculate_live_projection = FantasyTracker._calculate_live_projection.__get__(obj, FantasyTracker)
+    obj._is_starter_slot = FantasyTracker._is_starter_slot.__get__(obj, FantasyTracker)
     return obj
 
 
@@ -201,3 +202,12 @@ def test_live_projection_hot_pace_raises_finish():
     hot = tracker._calculate_live_projection(pre, 12.0, 20.0)
     assert hot > pre
     assert hot >= 12.0
+
+
+def test_ir_and_bench_slots_are_not_starters():
+    tracker = _tracker()
+    assert tracker._is_starter_slot(SimpleNamespace(slot_position='IR')) is False
+    assert tracker._is_starter_slot(SimpleNamespace(slot_position='IR+')) is False
+    assert tracker._is_starter_slot(SimpleNamespace(slot_position='BE')) is False
+    assert tracker._is_starter_slot(SimpleNamespace(slot_position='QB')) is True
+    assert tracker._is_starter_slot(SimpleNamespace(slot_position='FLEX')) is True

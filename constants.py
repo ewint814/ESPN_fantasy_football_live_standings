@@ -29,6 +29,9 @@ API_REQUEST_TIMEOUT = 10       # seconds for ESPN API requests
 PLAYOFF_CUTOFF = 6  # Top 6 teams make playoffs
 TOTAL_WEEKS = 18    # Regular season weeks
 
+# ESPN lineup slots that are not starters (bench / injured reserve)
+NON_STARTER_SLOTS = frozenset({'BE', 'IR', 'IR+', 'FA'})
+
 # Cache durations
 GAMES_CHECK_CACHE_DURATION = 3600  # 1 hour in seconds
 

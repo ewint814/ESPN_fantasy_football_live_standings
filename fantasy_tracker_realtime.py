@@ -11,6 +11,7 @@ import requests
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any, Generator
 from flask import Flask, render_template, jsonify, Response, stream_with_context
+from visit_log import VisitLog, register_visit_routes
 import threading
 import time
 import json
@@ -64,6 +65,10 @@ class FantasyTracker:
         
         # Timezone for display
         self.eastern = pytz.timezone('America/New_York')
+        self.visit_log = VisitLog(
+            path=os.getenv('VISIT_LOG_PATH', 'visits.log'),
+            timezone=self.eastern,
+        )
         
         # Real-time update tracking
         self.data_changed: bool = False
@@ -825,6 +830,12 @@ class FantasyTracker:
                 }
             )
         
+        register_visit_routes(
+            self.app,
+            self.visit_log,
+            lambda: os.getenv('LOG_PASSWORD', ''),
+        )
+
         @self.app.route('/health')
         def health() -> Response:
             is_healthy = self.league is not None and len(self.live_scores) > 0

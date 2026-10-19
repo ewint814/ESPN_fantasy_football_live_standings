@@ -12,6 +12,7 @@ The live app is the original light table UI with two tabs: **Current Standings**
 - **Yet to play** — remaining starters with projection and kickoff time (Eastern)
 - **Score flash** — score cell blinks green/red when it changes
 - **Add to Home Screen** — bulletin on the dashboard plus a web app manifest (`Schmacked`)
+- **smooks story** — a plain link under that note. The label does not show the Instagram name. It does not mention, tag, or contact the account. Instagram only learns about it if someone taps the link.
 - **Mobile** — rows stack on a phone so player names and kickoffs do not break mid-word
 - **Last updated** — Eastern Time
 - Auto-detected NFL season year and week

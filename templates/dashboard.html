@@ -604,11 +604,16 @@
                     statusBadge = '<span class="status-badge projected-badge">TOP 6</span>';
                 }
                 
+                const currentlyPlayingHTML = formatCurrentlyPlaying(team);
+                const yetToPlayHTML = formatYetToPlay(team);
+
                 row.innerHTML = `
                     <td class="rank-cell">${team.projected_rank}</td>
                     <td class="team-cell">${team.team_name}</td>
                     <td class="score-cell ${projFlash}">${team.projected_score.toFixed(1)}</td>
                     <td class="current-score ${liveFlash}">${team.live_score.toFixed(1)}</td>
+                    <td class="players-cell" data-label="Currently playing">${currentlyPlayingHTML}</td>
+                    <td class="players-cell" data-label="Yet to play">${yetToPlayHTML}</td>
                     <td class="status-cell">${statusBadge}</td>
                 `;
                 tbody.appendChild(row);
@@ -766,6 +771,8 @@
                         <th>Team</th>
                         <th>Projected</th>
                         <th>Current</th>
+                        <th>Currently Playing</th>
+                        <th>Yet to Play</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -776,6 +783,34 @@
                         <td class="team-cell">{{ team.team_name }}</td>
                         <td class="score-cell">{{ "%.1f"|format(team.projected_score) }}</td>
                         <td class="current-score">{{ "%.1f"|format(team.live_score) }}</td>
+                        <td class="players-cell" data-label="Currently playing">
+                            {% if team.currently_playing %}
+                                <div class="playing-names">
+                                    {% for name in team.currently_playing %}
+                                        <span class="player-entry">{{ name }}</span>{% if not loop.last %}<span class="player-sep">, </span>{% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="no-players">None</span>
+                            {% endif %}
+                        </td>
+                        <td class="players-cell" data-label="Yet to play">
+                            {% if team.yet_to_play_details %}
+                                <div class="player-names">
+                                    {% for p in team.yet_to_play_details %}
+                                        <span class="player-entry">{{ p.name }} (proj: {{ "%.1f"|format(p.projection) }}){% if p.kickoff %} <span class="kickoff-time">{{ p.kickoff }}</span>{% endif %}</span>{% if not loop.last %}<span class="player-sep">, </span>{% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% elif team.yet_to_play %}
+                                <div class="player-names">
+                                    {% for name in team.yet_to_play %}
+                                        <span class="player-entry">{{ name }}</span>{% if not loop.last %}<span class="player-sep">, </span>{% endif %}
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span class="no-players">All done</span>
+                            {% endif %}
+                        </td>
                         <td class="status-cell">
                             {% if team.projected_rank == 1 %}
                                 <span class="status-badge top-scorer-badge">TOP</span>

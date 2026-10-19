@@ -16,6 +16,7 @@ def _tracker():
     obj._clocks_from_sleeper_scores = FantasyTracker._clocks_from_sleeper_scores.__get__(obj, FantasyTracker)
     obj._merge_game_clocks = FantasyTracker._merge_game_clocks.__get__(obj, FantasyTracker)
     obj._calculate_live_projection = FantasyTracker._calculate_live_projection.__get__(obj, FantasyTracker)
+    obj._espn_live_team_projection = FantasyTracker._espn_live_team_projection.__get__(obj, FantasyTracker)
     obj._is_starter_slot = FantasyTracker._is_starter_slot.__get__(obj, FantasyTracker)
     return obj
 
@@ -185,23 +186,33 @@ def test_sleeper_was_alias_indexes_wsh():
     assert tracker._is_nfl_game_live(tracker._clock_for_team('WSH')) is True
 
 
-def test_live_projection_moves_with_game_progress():
+def test_live_projection_follows_espn_remaining_time():
+    """ESPN: current points + pregame * (regulation minutes left / 60)."""
     tracker = _tracker()
-    pre = 12.0
-    early = tracker._calculate_live_projection(pre, 6.0, 15.0)
-    late = tracker._calculate_live_projection(pre, 6.0, 45.0)
-    done = tracker._calculate_live_projection(pre, 13.4, 61.0)
-    assert early != late
-    assert late >= 6.0
-    assert done == 13.4
+    # 15 minutes played -> 45 left. 6 + 12 * 0.75
+    assert tracker._calculate_live_projection(12.0, 6.0, 15.0) == 15.0
+    # 45 minutes played -> 15 left. 6 + 12 * 0.25
+    assert tracker._calculate_live_projection(12.0, 6.0, 45.0) == 9.0
+    # Before kickoff, keep the pregame line even if current points are 0.
+    assert tracker._calculate_live_projection(12.0, 0.0, 0.0) == 12.0
+    # After regulation (including overtime) the projection is points scored.
+    assert tracker._calculate_live_projection(12.0, 13.4, 61.0) == 13.4
 
 
-def test_live_projection_hot_pace_raises_finish():
+def test_live_projection_keeps_points_already_scored():
     tracker = _tracker()
-    pre = 10.0
-    hot = tracker._calculate_live_projection(pre, 12.0, 20.0)
-    assert hot > pre
-    assert hot >= 12.0
+    # Hot start still keeps every point scored, plus time left on the pregame line.
+    hot = tracker._calculate_live_projection(10.0, 12.0, 20.0)
+    assert hot == 12.0 + 10.0 * (40.0 / 60.0)
+
+
+def test_espn_live_team_projection_used_when_present():
+    tracker = _tracker()
+    assert tracker._espn_live_team_projection(108.09) == 108.09
+    assert tracker._espn_live_team_projection(0) == 0.0
+    assert tracker._espn_live_team_projection(-1) is None
+    assert tracker._espn_live_team_projection(None) is None
+    assert tracker._espn_live_team_projection("nope") is None
 
 
 def test_ir_and_bench_slots_are_not_starters():

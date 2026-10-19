@@ -7,7 +7,7 @@ The live app is the original light table UI with two tabs: **Current Standings**
 ## What it shows
 
 - **Current Standings** — rank, team, live score, who is currently playing, who has yet to play, top-6 / last badges
-- **Live Projections** — projected finish vs current score
+- **Live Projections** — ESPN’s live team projection (`totalProjectedPointsLive`), the same number as the ESPN matchup page, scored with this league’s settings. In-progress players are points already scored plus the pregame projection scaled by regulation time left. Sleeper is used for game clocks only (its public projections are pregame, and only standard / half-PPR / PPR). Currently playing and yet to play are listed here too.
 - **Currently playing** — taken from the ESPN NFL scoreboard and Sleeper live flags (not ESPN fantasy’s `game_played` heuristic). Overtime still counts as playing until the game is actually final
 - **Yet to play** — remaining starters with projection and kickoff time (Eastern)
 - **Score flash** — score cell blinks green/red when it changes

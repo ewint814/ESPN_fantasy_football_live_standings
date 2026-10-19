@@ -80,6 +80,13 @@ There is no `src/` package and no active Dockerfile (Render runs Python directly
 | `/api/scores` | JSON scores |
 | `/health` | Liveness / ESPN connection |
 | `/manifest.webmanifest` | Add to Home Screen manifest |
+| `/log` | Private visit log. Not linked from the dashboard. |
+
+## Visit log
+
+Set `LOG_PASSWORD` in Render (or `.env`). Open `/log` and sign in with any username and that password. If the password is not set, `/log` does not exist.
+
+Each page load and each tab click adds one line: Eastern time, event, and a short device name (iPhone, Android, desktop). The dashboard looks and runs the same. The lines are also printed into the process log, which Render keeps. The file on the server is cleared on redeploy.
 
 ```bash
 curl http://localhost:5000/health

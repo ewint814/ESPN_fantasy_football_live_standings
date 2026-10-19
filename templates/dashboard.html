@@ -419,14 +419,27 @@
     <script>
         let currentView = 'current';
 
+        function logVisit(event, detail) {
+            try {
+                const body = new URLSearchParams({event: event, detail: detail});
+                if (navigator.sendBeacon) {
+                    navigator.sendBeacon('/visit', body);
+                    return;
+                }
+                fetch('/visit', {method: 'POST', body: body, keepalive: true}).catch(function() {});
+            } catch (e) {}
+        }
+
         function showCurrent() {
             currentView = 'current';
             updateView();
+            logVisit('tab', 'Current Standings');
         }
 
         function showProjected() {
             currentView = 'projected';
             updateView();
+            logVisit('tab', 'Live Projections');
         }
 
         function updateView() {
@@ -666,6 +679,7 @@
         // Connect to real-time stream on page load
         window.addEventListener('DOMContentLoaded', function() {
             connectSSE();
+            logVisit('open', 'dashboard');
         });
     </script>
 </head>

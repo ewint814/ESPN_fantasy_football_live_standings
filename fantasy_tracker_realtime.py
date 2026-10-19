@@ -406,38 +406,44 @@ class FantasyTracker:
             return 30.0
     
     def _calculate_live_projection(self, pre_game: float, current: float, minutes: float) -> float:
-        """Project a player's finish from current points + remaining game time.
+        """ESPN in-game player projection.
 
-        Updates as the game progresses: early minutes trust the pre-game line,
-        later minutes trust current pace. After regulation, projection is
-        current points (overtime scoring is already in current).
+        Points already scored, plus the pregame projection scaled by regulation
+        time still left. This is the fantasycast formula (not a pace blend).
+        Before kickoff the result is the pregame line. After regulation,
+        including overtime, it is points already scored.
         """
         try:
             current = max(float(current or 0.0), 0.0)
             pre_game = max(float(pre_game or 0.0), 0.0)
             minutes = max(float(minutes or 0.0), 0.0)
 
-            if pre_game <= 0:
-                return current
+            if minutes <= 0:
+                return pre_game
             if minutes >= 60:
                 return current
-            if minutes <= 5:
-                return max(pre_game, current)
 
-            remaining = 60.0 - minutes
-            scoring_rate = current / minutes
-            remaining_from_pace = scoring_rate * remaining
-            remaining_from_pre = pre_game * (remaining / 60.0)
-            time_weight = min(minutes / 60.0, 0.8)
-            remaining_proj = (remaining_from_pace * time_weight) + (
-                remaining_from_pre * (1.0 - time_weight)
-            )
-            floor = current + (pre_game * 0.5 * remaining / 60.0)
-            return max(current + remaining_proj, floor, current)
+            remaining = (60.0 - minutes) / 60.0
+            return current + (pre_game * remaining)
 
         except Exception as e:
             logger.debug(f"Projection calculation error: {e}, returning pre_game: {pre_game}")
             return max(pre_game, current, 0.0)
+
+    def _espn_live_team_projection(self, espn_projected: Any) -> Optional[float]:
+        """ESPN matchup live total (totalProjectedPointsLive), or None if absent.
+
+        Box scores expose this as home_projected / away_projected. ESPN uses
+        the league's scoring settings, and the value updates during games.
+        Missing data comes through as -1.
+        """
+        try:
+            value = float(espn_projected)
+        except (TypeError, ValueError):
+            return None
+        if value < 0:
+            return None
+        return value
 
     def _format_kickoff(self, player: Any) -> str:
         """Format a player's NFL kickoff time in Eastern Time."""
@@ -503,9 +509,19 @@ class FantasyTracker:
             teams_data: List[Dict[str, Any]] = []
             
             for matchup in box_scores:
-                for team, lineup, score in [
-                    (matchup.home_team, matchup.home_lineup, matchup.home_score),
-                    (matchup.away_team, matchup.away_lineup, matchup.away_score)
+                for team, lineup, score, espn_projected in [
+                    (
+                        matchup.home_team,
+                        matchup.home_lineup,
+                        matchup.home_score,
+                        getattr(matchup, 'home_projected', -1),
+                    ),
+                    (
+                        matchup.away_team,
+                        matchup.away_lineup,
+                        matchup.away_score,
+                        getattr(matchup, 'away_projected', -1),
+                    ),
                 ]:
                     team_name = getattr(team, 'team_name', 'Unknown Team')
                     
@@ -605,7 +621,13 @@ class FantasyTracker:
                                 )
                                 projected_total += pre_game_projection
                                 remaining_projection += float(pre_game_projection or 0.0)
-                    
+
+                    # Prefer ESPN's live team total. It is scored with this
+                    # league's rules and is the number on the matchup page.
+                    espn_live = self._espn_live_team_projection(espn_projected)
+                    if espn_live is not None:
+                        projected_total = espn_live
+
                     teams_data.append({
                         'team_name': team_name,
                         'live_score': float(score) if score else 0.0,

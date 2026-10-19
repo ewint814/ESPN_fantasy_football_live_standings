@@ -11,7 +11,7 @@ The live app is the original light table UI with two tabs: **Current Standings**
 - **Currently playing** — taken from the ESPN NFL scoreboard and Sleeper live flags (not ESPN fantasy’s `game_played` heuristic). Overtime still counts as playing until the game is actually final
 - **Yet to play** — remaining starters with projection and kickoff time (Eastern)
 - **Score flash** — score cell blinks green/red when it changes
-- **Add to Home Screen** — bulletin on the dashboard plus a web app manifest (`FF Live`)
+- **Add to Home Screen** — bulletin on the dashboard plus a web app manifest (`Schmacked`)
 - **Mobile** — rows stack on a phone so player names and kickoffs do not break mid-word
 - **Last updated** — Eastern Time
 - Auto-detected NFL season year and week

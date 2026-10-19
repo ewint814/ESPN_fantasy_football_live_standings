@@ -792,8 +792,8 @@ class FantasyTracker:
         @self.app.route('/manifest.webmanifest')
         def manifest() -> Response:
             payload = {
-                'name': 'Fantasy Football LIVE Tracker',
-                'short_name': 'FF Live',
+                'name': 'Schmacked Top Six Tracker',
+                'short_name': 'Schmacked',
                 'start_url': '/',
                 'display': 'standalone',
                 'background_color': '#f5f5f5',

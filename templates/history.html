@@ -56,34 +56,95 @@
 
         h2 {
             font-size: 1.05em;
+            margin: 0;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
             margin: 4px 0 10px;
         }
 
-        .rings {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
+        .text-btn {
+            background: none;
+            border: none;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.9em;
+            cursor: pointer;
+            padding: 8px 0;
+        }
+
+        .case {
+            background: #fffaf0;
+            border: 1px solid #e6d7b0;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
             margin-bottom: 22px;
         }
 
-        .ring {
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 8px 10px;
-            min-width: 92px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        .trophy {
+            display: grid;
+            grid-template-columns: minmax(72px, auto) 1fr;
+            grid-template-areas: "name rings" "years years";
+            column-gap: 12px;
+            row-gap: 4px;
+            align-items: center;
+            padding: 12px 14px;
+            border-bottom: 1px solid #f0e4c4;
         }
 
-        .ring b {
-            display: block;
-            font-size: 1.05em;
+        .trophy:last-child {
+            border-bottom: none;
+        }
+
+        .trophy-name {
+            grid-area: name;
+            font-weight: 600;
             white-space: nowrap;
         }
 
-        .ring span {
-            color: #666;
-            font-size: 0.78em;
+        .band {
+            grid-area: rings;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .medal {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            position: relative;
+            flex: 0 0 auto;
+            background:
+                radial-gradient(circle at 50% 50%,
+                    #fffdf6 0 7px,
+                    #f0d78c 8px 10px,
+                    #8a6a2c 11px 13.5px,
+                    #f6e3a4 14px 16px);
+            box-shadow: 0 1px 2px rgba(80, 60, 10, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+        }
+
+        .medal .stone {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 8px;
+            height: 8px;
+            margin-left: -4px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #fff, #8ec0ff 42%, #215fbe);
+            box-shadow: 0 0 0 1px #6d5420;
+        }
+
+        .trophy-years {
+            grid-area: years;
+            color: #7a6a45;
+            font-size: 0.82em;
         }
 
         .seasons {
@@ -98,14 +159,49 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-            padding: 12px 14px 10px;
             scroll-margin-top: 120px;
         }
 
-        .season h3 {
-            font-size: 1.15em;
+        .season summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 48px;
+            padding: 12px 14px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .season summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .season-year {
             font-weight: 600;
-            margin-bottom: 4px;
+            font-size: 1.05em;
+        }
+
+        .season-champ {
+            margin-left: auto;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .chevron {
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid #888;
+            border-bottom: 2px solid #888;
+            transform: rotate(-45deg);
+            flex: 0 0 auto;
+        }
+
+        .season[open] .chevron {
+            transform: rotate(45deg);
+        }
+
+        .season-body {
+            padding: 0 14px 10px;
         }
 
         .place-row {
@@ -150,6 +246,17 @@
             font-size: 0.82em;
         }
 
+        @media (min-width: 800px) {
+            .case {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .trophy:nth-child(even) {
+                box-shadow: inset 1px 0 0 #f0e4c4;
+            }
+        }
+
         @media (max-width: 768px) {
             .header { padding: 16px 12px; }
             .header h1 { font-size: 1.35em; }
@@ -167,33 +274,73 @@
     <div class="container">
         <p class="note">Final places from the league sheet. Where a year skips places, those spots were left blank.</p>
 
-        <h2>Rings</h2>
-        <div class="rings">
+        <div class="section-head">
+            <h2>Rings</h2>
+        </div>
+        <div class="case">
             {% for ring in rings %}
-            <div class="ring">
-                <b>{{ ring.name }}</b>
-                <span>{{ ring.count }} ring{% if ring.count != 1 %}s{% endif %}</span>
+            <div class="trophy">
+                <div class="trophy-name">{{ ring.name }}</div>
+                <div class="band" aria-label="{{ ring.count }} ring{% if ring.count != 1 %}s{% endif %}">
+                    {% for year in ring.years %}
+                    <span class="medal" title="{{ year }}"><span class="stone"></span></span>
+                    {% endfor %}
+                </div>
+                <div class="trophy-years">{{ ring.years | join(" · ") }}</div>
             </div>
             {% endfor %}
         </div>
 
-        <h2>Finishes</h2>
+        <div class="section-head">
+            <h2>Finishes</h2>
+            <button type="button" id="toggleSeasons" class="text-btn">Show all</button>
+        </div>
         <div class="seasons">
             {% for season in seasons %}
-            <article class="season" id="season-{{ season.year }}">
-                <h3>{{ season.year }}</h3>
-                {% for row in season.rows %}
-                <div class="place-row{% if row.champion %} champ{% endif %}{% if row.gap %} gap{% endif %}">
-                    <span class="place">{{ row.label }}</span>
-                    <span class="name">{{ row.name if row.name else "not written down" }}</span>
+            <details class="season" id="season-{{ season.year }}"{% if loop.first %} open{% endif %}>
+                <summary>
+                    <span class="season-year">{{ season.year }}</span>
+                    <span class="season-champ">{{ season.champion }}</span>
+                    <span class="chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="season-body">
+                    {% for row in season.rows %}
+                    <div class="place-row{% if row.champion %} champ{% endif %}{% if row.gap %} gap{% endif %}">
+                        <span class="place">{{ row.label }}</span>
+                        <span class="name">{{ row.name if row.name else "not written down" }}</span>
+                    </div>
+                    {% endfor %}
+                    {% if season.joined %}
+                    <p class="joined">Joined: {{ season.joined | join(", ") }}</p>
+                    {% endif %}
                 </div>
-                {% endfor %}
-                {% if season.joined %}
-                <p class="joined">Joined: {{ season.joined | join(", ") }}</p>
-                {% endif %}
-            </article>
+            </details>
             {% endfor %}
         </div>
     </div>
+    <script>
+        const seasonCards = document.querySelectorAll("details.season");
+        const toggleSeasons = document.getElementById("toggleSeasons");
+
+        function everySeasonOpen() {
+            return Array.from(seasonCards).every((card) => card.open);
+        }
+
+        function labelToggle() {
+            toggleSeasons.textContent = everySeasonOpen() ? "Hide all" : "Show all";
+        }
+
+        toggleSeasons.addEventListener("click", () => {
+            const open = !everySeasonOpen();
+            seasonCards.forEach((card) => {
+                card.open = open;
+            });
+            labelToggle();
+        });
+
+        seasonCards.forEach((card) => {
+            card.addEventListener("toggle", labelToggle);
+        });
+    </script>
 </body>
 </html>

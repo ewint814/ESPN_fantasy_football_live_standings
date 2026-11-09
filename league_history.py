@@ -71,6 +71,14 @@ class Ring:
     years: tuple[int, ...]
 
 
+@dataclass(frozen=True)
+class Title:
+    """One championship, for the ring wall."""
+
+    year: int
+    name: str
+
+
 # Newest season first. None is a place the sheet left empty.
 SEASONS: tuple[Season, ...] = (
     Season(
@@ -230,6 +238,16 @@ def season_views() -> tuple[SeasonView, ...]:
         )
         for season in SEASONS
     )
+
+
+def titles() -> tuple[Title, ...]:
+    """Championships from oldest season to newest."""
+    wall: list[Title] = []
+    for season in reversed(SEASONS):
+        name = season.places[0] if season.places else None
+        if name:
+            wall.append(Title(season.year, name))
+    return tuple(wall)
 
 
 def ring_counts() -> tuple[Ring, ...]:

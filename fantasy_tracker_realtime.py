@@ -21,7 +21,7 @@ import pytz
 
 # Import local modules
 from config import Config
-from league_history import ring_counts, season_views
+from league_history import season_views, titles
 from nfl_utils import NFLSeasonHelper
 from constants import (
     UPDATE_INTERVAL_ACTIVE_GAMES,
@@ -800,7 +800,7 @@ class FantasyTracker:
         def history() -> str:
             return render_template(
                 'history.html',
-                rings=ring_counts(),
+                titles=titles(),
                 seasons=season_views(),
             )
 

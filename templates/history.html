@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Schmacked">
+    <meta name="theme-color" content="#333333">
+    <title>Schmacked History</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #ddd;
+            padding: 24px 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .page-link {
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 24px 20px 40px;
+        }
+
+        .note {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 14px;
+        }
+
+        h2 {
+            font-size: 1.05em;
+            margin: 4px 0 10px;
+        }
+
+        .rings {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 22px;
+        }
+
+        .ring {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 8px 10px;
+            min-width: 92px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .ring b {
+            display: block;
+            font-size: 1.05em;
+            white-space: nowrap;
+        }
+
+        .ring span {
+            color: #666;
+            font-size: 0.78em;
+        }
+
+        .seasons {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px;
+            align-items: start;
+        }
+
+        .season {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+            padding: 12px 14px 10px;
+            scroll-margin-top: 120px;
+        }
+
+        .season h3 {
+            font-size: 1.15em;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .place-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 12px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .place-row:last-child {
+            border-bottom: none;
+        }
+
+        .place {
+            color: #888;
+            white-space: nowrap;
+            flex: 0 0 auto;
+        }
+
+        .name {
+            font-weight: 600;
+            white-space: nowrap;
+            text-align: right;
+        }
+
+        .place-row.champ {
+            box-shadow: inset 3px 0 0 #28a745;
+            padding-left: 8px;
+        }
+
+        .place-row.gap .name {
+            color: #999;
+            font-weight: 500;
+            font-style: italic;
+        }
+
+        .joined {
+            margin-top: 8px;
+            color: #666;
+            font-size: 0.82em;
+        }
+
+        @media (max-width: 768px) {
+            .header { padding: 16px 12px; }
+            .header h1 { font-size: 1.35em; }
+            .container { padding: 12px 12px 28px; }
+            .seasons { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Schmacked History</h1>
+        <a class="page-link" href="/">Standings</a>
+    </div>
+
+    <div class="container">
+        <p class="note">Final places from the league sheet. Where a year skips places, those spots were left blank.</p>
+
+        <h2>Rings</h2>
+        <div class="rings">
+            {% for ring in rings %}
+            <div class="ring">
+                <b>{{ ring.name }}</b>
+                <span>{{ ring.count }} ring{% if ring.count != 1 %}s{% endif %}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <h2>Finishes</h2>
+        <div class="seasons">
+            {% for season in seasons %}
+            <article class="season" id="season-{{ season.year }}">
+                <h3>{{ season.year }}</h3>
+                {% for row in season.rows %}
+                <div class="place-row{% if row.champion %} champ{% endif %}{% if row.gap %} gap{% endif %}">
+                    <span class="place">{{ row.label }}</span>
+                    <span class="name">{{ row.name if row.name else "not written down" }}</span>
+                </div>
+                {% endfor %}
+                {% if season.joined %}
+                <p class="joined">Joined: {{ season.joined | join(", ") }}</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>

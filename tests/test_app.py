@@ -70,6 +70,79 @@ def test_nfl_utils():
         print(f"  ❌ NFL utils test failed: {e}")
         return False
 
+def _sample_scores(count: int) -> list:
+    """Standings rows for the cut-line render check."""
+    teams = []
+    for i in range(count):
+        rank = i + 1
+        teams.append({
+            'team_name': f'Team {rank}',
+            'live_score': float(100 - i),
+            'projected_score': float(90 - i),
+            'rank': rank,
+            'projected_rank': rank,
+            'is_current_top6': rank <= 6,
+            'is_projected_top6': rank <= 6,
+            'currently_playing': [],
+            'yet_to_play': [],
+            'yet_to_play_details': [],
+        })
+    return teams
+
+
+def _render_scores(scores: list) -> str:
+    from flask import Flask, render_template
+
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    app = Flask(__name__, template_folder=os.path.join(root, 'templates'))
+    with app.app_context():
+        return render_template(
+            'dashboard.html',
+            scores=scores,
+            last_update=None,
+            week=10,
+            nfl_year=2026,
+            api_error=None,
+            eastern=None,
+            playoff_cutoff=6,
+        )
+
+
+def _cut_follows_rank(html: str, table_id: str, rank_label: str, until: str) -> bool:
+    """The dark rule sits after that rank and before the next row."""
+    start = html.find(f'id="{table_id}"')
+    end = html.find(until, start + len(table_id))
+    section = html[start:end if end != -1 else None]
+    rank_at = section.find(f'>{rank_label}<')
+    cut_at = section.find('cut-row')
+    next_rank = str(int(rank_label) + 1)
+    next_at = section.find(f'>{next_rank}<', rank_at + 1)
+    return rank_at != -1 and cut_at != -1 and next_at != -1 and rank_at < cut_at < next_at
+
+
+def test_cut_line() -> bool:
+    """A line renders under 6th on both tabs, and nowhere else."""
+    print("\n🧪 Testing the line under 6th...")
+    try:
+        full = _render_scores(_sample_scores(12))
+        assert full.count('class="cut-row"') == 2, full.count('class="cut-row"')
+        assert _cut_follows_rank(full, 'currentStandings', '6', 'id="projectedStandings"')
+        assert _cut_follows_rank(full, 'projectedStandings', '6', '</body>')
+        assert 'const CUT_AFTER_RANK = 6;' in full
+
+        short = _render_scores(_sample_scores(6))
+        assert 'class="cut-row"' not in short
+
+        # Live updates rebuild both tables. The same rank check has to be there.
+        assert 'appendCutIfNeeded(tbody, team.rank, scores.length, 6)' in full
+        assert 'appendCutIfNeeded(tbody, team.projected_rank, scores.length, 7)' in full
+        print("  ✅ Line sits under 6th on both tabs, and hides when the league is shorter")
+        return True
+    except Exception as e:
+        print(f"  ❌ Cut line test failed: {e}")
+        return False
+
+
 def test_config():
     """Test configuration module."""
     print("\n🧪 Testing configuration...")
@@ -142,6 +215,7 @@ def main():
     results.append(("Imports", test_imports()))
     results.append(("NFL Utils", test_nfl_utils()))
     results.append(("Config", test_config()))
+    results.append(("Cut line", test_cut_line()))
     
     # Print summary
     print("\n" + "=" * 60)

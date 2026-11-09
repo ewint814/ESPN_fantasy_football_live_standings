@@ -32,6 +32,7 @@ from constants import (
     RETRY_BASE_DELAY,
     RETRY_MAX_DELAY,
     NON_STARTER_SLOTS,
+    PLAYOFF_CUTOFF,
 )
 
 # Load environment variables
@@ -860,7 +861,8 @@ class FantasyTracker:
             week=self.current_week,
             nfl_year=self.nfl_year,
             api_error=self.api_error,
-            eastern=self.eastern
+            eastern=self.eastern,
+            playoff_cutoff=PLAYOFF_CUTOFF,
         )
     
     def run(self, host: Optional[str] = None, port: Optional[int] = None, debug: Optional[bool] = None) -> None:

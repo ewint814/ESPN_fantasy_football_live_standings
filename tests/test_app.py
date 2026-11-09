@@ -143,6 +143,56 @@ def test_cut_line() -> bool:
         return False
 
 
+def test_history() -> bool:
+    """History shows the sheet's finishes, and the standings page keeps two tabs."""
+    print("\n🧪 Testing league history...")
+    try:
+        from flask import Flask, render_template
+
+        from league_history import champion, ring_counts, season_views
+
+        assert champion(2025) == "Bergel"
+        assert champion(2011) == "Eli"
+        assert champion(2010) is None
+
+        rings = {ring.name: ring.count for ring in ring_counts()}
+        assert rings["Eli"] == 5
+        assert rings["Bergel"] == 2
+        assert "Harry" not in rings
+
+        by_year = {season.year: season for season in season_views()}
+        places_2011 = [row.name for row in by_year[2011].rows]
+        assert places_2011 == ["Eli", "Austin", "Yoni", "Noam", "Joe", "Tuvia", "Noach", "Goggles"]
+        assert by_year[2012].joined == ("Wechs", "Henry", "Ezra")
+        gap = next(row for row in by_year[2018].rows if row.gap)
+        assert gap.label == "5th–9th"
+        assert gap.name is None
+        tenth_2016 = [row.name for row in by_year[2016].rows if row.label == "10th"]
+        assert tenth_2016 == ["Bergel"]
+
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        app = Flask(__name__, template_folder=os.path.join(root, "templates"))
+        with app.app_context():
+            page = render_template(
+                "history.html",
+                rings=ring_counts(),
+                seasons=season_views(),
+            )
+        assert "Schmacked History" in page
+        assert 'href="/"' in page
+        assert page.count("not written down") == 7
+        assert "Joined: Yossi" in page
+
+        dashboard = _render_scores(_sample_scores(12))
+        assert dashboard.count('class="toggle-btn') == 2
+        assert 'href="/history"' in dashboard
+        print("  ✅ History matches the sheet, and standings still has two tabs")
+        return True
+    except Exception as e:
+        print(f"  ❌ History test failed: {e}")
+        return False
+
+
 def test_config():
     """Test configuration module."""
     print("\n🧪 Testing configuration...")
@@ -216,6 +266,7 @@ def main():
     results.append(("NFL Utils", test_nfl_utils()))
     results.append(("Config", test_config()))
     results.append(("Cut line", test_cut_line()))
+    results.append(("History", test_history()))
     
     # Print summary
     print("\n" + "=" * 60)

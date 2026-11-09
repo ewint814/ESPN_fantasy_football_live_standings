@@ -69,6 +69,14 @@
             margin-bottom: 8px;
         }
 
+        .history-link {
+            display: inline-block;
+            margin-top: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
         .last-update {
             font-size: 0.9em;
             color: #888;
@@ -738,6 +746,7 @@
             <span>REAL-TIME UPDATES</span>
         </div>
         <div class="week-info">{{ nfl_year }} Season • Week {{ week }}</div>
+        <a class="history-link" href="/history">History</a>
         {% if last_update %}
         <div class="last-update">Last updated: {{ last_update.astimezone(eastern).strftime('%I:%M:%S %p ET') }}</div>
         {% endif %}

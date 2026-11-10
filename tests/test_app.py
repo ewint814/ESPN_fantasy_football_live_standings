@@ -191,14 +191,11 @@ def test_history() -> bool:
         assert 'href="/"' in page
         assert page.count("not written down") == 7
         assert "Joined: Yossi" in page
-        holders = page.split('class="holder"')[1:]
-        assert len(holders) == 7
-        eli = holders[0]
-        assert ">Eli<" in eli
-        assert eli.count('class="band-ring"') == 5
-        for year in ("2011", "2012", "2015", "2020", "2023"):
-            assert year in eli
-        assert page.count('class="band-ring"') == 15
+        rows = page.split('class="plate-row"')[1:]
+        assert len(rows) == 15
+        assert "2011" in rows[0] and "Eli" in rows[0]
+        assert "2025" in rows[-1] and "Bergel" in rows[-1]
+        assert page.count('class="screw ') == 4
         assert page.count("<details") == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page

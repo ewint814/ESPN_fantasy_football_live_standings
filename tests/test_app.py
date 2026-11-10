@@ -196,6 +196,10 @@ def test_history() -> bool:
         assert "2011" in rows[0] and "Eli" in rows[0]
         assert "2025" in rows[-1] and "Bergel" in rows[-1]
         assert page.count('class="screw ') == 4
+        tally = page.split('aria-label="Championships by person"', 1)[1].split("</ul>", 1)[0]
+        assert tally.count("<li>") == 7
+        assert "Eli" in tally and ">5<" in tally
+        assert "Wechs" in tally and ">1<" in tally
         assert page.count("<details") == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page

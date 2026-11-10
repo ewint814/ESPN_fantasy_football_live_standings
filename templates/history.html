@@ -56,34 +56,150 @@
 
         h2 {
             font-size: 1.05em;
+            margin: 0;
+        }
+
+        .section-head {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
             margin: 4px 0 10px;
         }
 
-        .rings {
+        .text-btn {
+            background: none;
+            border: none;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.9em;
+            cursor: pointer;
+            padding: 8px 0;
+        }
+
+        .plate-wrap {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 0;
+        }
+
+        .plate {
+            position: relative;
+            width: min(100%, 420px);
+            background: #171717;
+            color: #efece4;
+            border-radius: 2px;
+            padding: 22px 18px 18px;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 255, 255, 0.14),
+                0 12px 28px rgba(0, 0, 0, 0.16);
+        }
+
+        .plate-frame {
+            border: 1px solid rgba(239, 236, 228, 0.28);
+            padding: 18px 16px 14px;
+        }
+
+        .screw {
+            position: absolute;
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #7a7a7a, #2a2a2a 58%, #111 70%);
+            box-shadow: inset 0 0 0 0.5px #000, 0 1px 0 rgba(255, 255, 255, 0.15);
+        }
+
+        .screw::after {
+            content: "";
+            position: absolute;
+            left: 1px;
+            right: 1px;
+            top: 4px;
+            height: 1px;
+            background: #141414;
+            transform: rotate(28deg);
+        }
+
+        .screw-tl { top: 8px; left: 8px; }
+        .screw-tr { top: 8px; right: 8px; }
+        .screw-bl { bottom: 8px; left: 8px; }
+        .screw-br { bottom: 8px; right: 8px; }
+
+        .plate-kicker {
+            text-align: center;
+            font-family: Palatino, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+            font-size: 0.78em;
+            font-weight: 600;
+            letter-spacing: 0.42em;
+            text-transform: uppercase;
+            color: #d9d4c8;
+            margin: 0 0 12px;
+            padding-left: 0.42em;
+        }
+
+        .plate-rule {
+            height: 1px;
+            background: rgba(239, 236, 228, 0.28);
+            margin: 0 8px 12px;
+        }
+
+        .plate-row {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            padding: 3px 4px;
+            font-family: Palatino, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        }
+
+        .plate-year,
+        .plate-name {
+            white-space: nowrap;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .plate-year {
+            color: #c8c3b8;
+            font-variant-numeric: tabular-nums;
+            font-size: 0.84em;
+        }
+
+        .plate-leader {
+            flex: 1 1 auto;
+            border-bottom: 1px dotted rgba(239, 236, 228, 0.38);
+            transform: translateY(-4px);
+        }
+
+        .plate-name {
+            font-size: 1.02em;
+        }
+
+        .tally-label {
+            text-align: center;
+            font-size: 0.72em;
+            font-weight: 600;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+            color: #888;
+            margin: 14px 0 8px;
+        }
+
+        .tally {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 22px;
+            justify-content: center;
+            gap: 4px 16px;
+            list-style: none;
+            max-width: 640px;
+            margin: 0 auto 26px;
+            padding: 0;
+            font-size: 0.95em;
         }
 
-        .ring {
-            background: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 8px 10px;
-            min-width: 92px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-        }
-
-        .ring b {
-            display: block;
-            font-size: 1.05em;
-            white-space: nowrap;
-        }
-
-        .ring span {
-            color: #666;
-            font-size: 0.78em;
+        .tally-count {
+            font-variant-numeric: tabular-nums;
+            font-weight: 650;
+            margin-left: 4px;
         }
 
         .seasons {
@@ -98,14 +214,49 @@
             border: 1px solid #ddd;
             border-radius: 4px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
-            padding: 12px 14px 10px;
             scroll-margin-top: 120px;
         }
 
-        .season h3 {
-            font-size: 1.15em;
+        .season summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            min-height: 48px;
+            padding: 12px 14px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .season summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .season-year {
             font-weight: 600;
-            margin-bottom: 4px;
+            font-size: 1.05em;
+        }
+
+        .season-champ {
+            margin-left: auto;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .chevron {
+            width: 8px;
+            height: 8px;
+            border-right: 2px solid #888;
+            border-bottom: 2px solid #888;
+            transform: rotate(-45deg);
+            flex: 0 0 auto;
+        }
+
+        .season[open] .chevron {
+            transform: rotate(45deg);
+        }
+
+        .season-body {
+            padding: 0 14px 10px;
         }
 
         .place-row {
@@ -155,6 +306,8 @@
             .header h1 { font-size: 1.35em; }
             .container { padding: 12px 12px 28px; }
             .seasons { grid-template-columns: 1fr; }
+            .plate { padding: 16px 12px 14px; }
+            .plate-frame { padding: 14px 12px 10px; }
         }
     </style>
 </head>
@@ -167,33 +320,83 @@
     <div class="container">
         <p class="note">Final places from the league sheet. Where a year skips places, those spots were left blank.</p>
 
-        <h2>Rings</h2>
-        <div class="rings">
-            {% for ring in rings %}
-            <div class="ring">
-                <b>{{ ring.name }}</b>
-                <span>{{ ring.count }} ring{% if ring.count != 1 %}s{% endif %}</span>
-            </div>
-            {% endfor %}
+        <div class="plate-wrap">
+            <section class="plate" aria-label="Champions">
+                <span class="screw screw-tl" aria-hidden="true"></span>
+                <span class="screw screw-tr" aria-hidden="true"></span>
+                <span class="screw screw-bl" aria-hidden="true"></span>
+                <span class="screw screw-br" aria-hidden="true"></span>
+                <div class="plate-frame">
+                    <p class="plate-kicker">Schmacked</p>
+                    <div class="plate-rule"></div>
+                    {% for season in seasons|reverse %}
+                    <div class="plate-row">
+                        <span class="plate-year">{{ season.year }}</span>
+                        <span class="plate-leader" aria-hidden="true"></span>
+                        <span class="plate-name">{{ season.champion }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </section>
         </div>
 
-        <h2>Finishes</h2>
+        <p class="tally-label">By person</p>
+        <ul class="tally" aria-label="Championships by person">
+            {% for ring in rings %}
+            <li><span class="tally-name">{{ ring.name }}</span><span class="tally-count">{{ ring.count }}</span></li>
+            {% endfor %}
+        </ul>
+
+        <div class="section-head">
+            <h2>Finishes</h2>
+            <button type="button" id="toggleSeasons" class="text-btn">Show all</button>
+        </div>
         <div class="seasons">
             {% for season in seasons %}
-            <article class="season" id="season-{{ season.year }}">
-                <h3>{{ season.year }}</h3>
-                {% for row in season.rows %}
-                <div class="place-row{% if row.champion %} champ{% endif %}{% if row.gap %} gap{% endif %}">
-                    <span class="place">{{ row.label }}</span>
-                    <span class="name">{{ row.name if row.name else "not written down" }}</span>
+            <details class="season" id="season-{{ season.year }}"{% if loop.first %} open{% endif %}>
+                <summary>
+                    <span class="season-year">{{ season.year }}</span>
+                    <span class="season-champ">{{ season.champion }}</span>
+                    <span class="chevron" aria-hidden="true"></span>
+                </summary>
+                <div class="season-body">
+                    {% for row in season.rows %}
+                    <div class="place-row{% if row.champion %} champ{% endif %}{% if row.gap %} gap{% endif %}">
+                        <span class="place">{{ row.label }}</span>
+                        <span class="name">{{ row.name if row.name else "not written down" }}</span>
+                    </div>
+                    {% endfor %}
+                    {% if season.joined %}
+                    <p class="joined">Joined: {{ season.joined | join(", ") }}</p>
+                    {% endif %}
                 </div>
-                {% endfor %}
-                {% if season.joined %}
-                <p class="joined">Joined: {{ season.joined | join(", ") }}</p>
-                {% endif %}
-            </article>
+            </details>
             {% endfor %}
         </div>
     </div>
+    <script>
+        const seasonCards = document.querySelectorAll("details.season");
+        const toggleSeasons = document.getElementById("toggleSeasons");
+
+        function everySeasonOpen() {
+            return Array.from(seasonCards).every((card) => card.open);
+        }
+
+        function labelToggle() {
+            toggleSeasons.textContent = everySeasonOpen() ? "Hide all" : "Show all";
+        }
+
+        toggleSeasons.addEventListener("click", () => {
+            const open = !everySeasonOpen();
+            seasonCards.forEach((card) => {
+                card.open = open;
+            });
+            labelToggle();
+        });
+
+        seasonCards.forEach((card) => {
+            card.addEventListener("toggle", labelToggle);
+        });
+    </script>
 </body>
 </html>

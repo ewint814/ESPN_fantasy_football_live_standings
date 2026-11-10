@@ -59,14 +59,16 @@ class SeasonView:
     year: int
     rows: tuple[PlaceRow, ...]
     joined: tuple[str, ...]
+    champion: str | None
 
 
 @dataclass(frozen=True)
 class Ring:
-    """Championships counted from 1st place."""
+    """Championships counted from 1st place. Years are oldest first."""
 
     name: str
     count: int
+    years: tuple[int, ...]
 
 
 # Newest season first. None is a place the sheet left empty.
@@ -219,16 +221,27 @@ def _rows(places: tuple[str | None, ...]) -> tuple[PlaceRow, ...]:
 
 def season_views() -> tuple[SeasonView, ...]:
     """Season cards, newest first."""
-    return tuple(SeasonView(season.year, _rows(season.places), season.joined) for season in SEASONS)
+    return tuple(
+        SeasonView(
+            season.year,
+            _rows(season.places),
+            season.joined,
+            season.places[0] if season.places else None,
+        )
+        for season in SEASONS
+    )
 
 
 def ring_counts() -> tuple[Ring, ...]:
     """Championships, most rings first, then the sheet's career order."""
     counts: dict[str, int] = {}
-    for season in SEASONS:
-        champion = season.places[0] if season.places else None
-        if champion:
-            counts[champion] = counts.get(champion, 0) + 1
+    years: dict[str, list[int]] = {}
+    for season in reversed(SEASONS):
+        title = season.places[0] if season.places else None
+        if not title:
+            continue
+        counts[title] = counts.get(title, 0) + 1
+        years.setdefault(title, []).append(season.year)
 
     def sort_key(name: str) -> tuple[int, int]:
         try:
@@ -237,7 +250,9 @@ def ring_counts() -> tuple[Ring, ...]:
             sheet_index = len(SHEET_ORDER)
         return (-counts[name], sheet_index)
 
-    return tuple(Ring(name, counts[name]) for name in sorted(counts, key=sort_key))
+    return tuple(
+        Ring(name, counts[name], tuple(years[name])) for name in sorted(counts, key=sort_key)
+    )
 
 
 def champion(year: int) -> str | None:

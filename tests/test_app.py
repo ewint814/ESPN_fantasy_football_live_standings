@@ -156,7 +156,7 @@ def test_history() -> bool:
     try:
         from flask import Flask, render_template
 
-        from league_history import champion, ring_counts, season_views, titles
+        from league_history import champion, ring_counts, season_views
 
         assert champion(2025) == "Bergel"
         assert champion(2011) == "Eli"
@@ -184,19 +184,21 @@ def test_history() -> bool:
         with app.app_context():
             page = render_template(
                 "history.html",
-                titles=titles(),
+                rings=ring_counts(),
                 seasons=season_views(),
             )
         assert "Schmacked History" in page
         assert 'href="/"' in page
         assert page.count("not written down") == 7
         assert "Joined: Yossi" in page
-        wall = titles()
-        assert len(wall) == 15
-        assert (wall[0].year, wall[0].name) == (2011, "Eli")
-        assert (wall[-1].year, wall[-1].name) == (2025, "Bergel")
+        holders = page.split('class="holder"')[1:]
+        assert len(holders) == 7
+        eli = holders[0]
+        assert ">Eli<" in eli
+        assert eli.count('class="band-ring"') == 5
+        for year in ("2011", "2012", "2015", "2020", "2023"):
+            assert year in eli
         assert page.count('class="band-ring"') == 15
-        assert page.count('class="medal"') == 0
         assert page.count("<details") == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page

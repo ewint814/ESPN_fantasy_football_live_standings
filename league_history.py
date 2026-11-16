@@ -184,15 +184,16 @@ SEASONS: tuple[Season, ...] = (
 
 
 # Whole-word spellings ESPN uses for a sheet nickname.
-# Henry's account is "jake h" (nosoup4ya): the 2012 joiner who is not Wechs
-# or Ezra, and the team the 2021 walk placed 4th, where the sheet says Henry.
+# Eli confirmed these: Henry is jake h, Joe is Joseph Solomont,
+# Noach is Noah Bressler, Yossi is Yosef Vaitsblit.
+# Wechs is Ollie Wechsler. ESPN writes that account "avi wechsler".
 # Goggles is the 2011 account that is not one of the other seven: jon avraham.
 ALIASES: dict[str, tuple[str, ...]] = {
-    "Joe": ("joseph solomont", "bsportsfan96"),
+    "Joe": ("joseph solomont", "joseph solomon", "bsportsfan96"),
     "Henry": ("jake h", "nosoup4ya"),
     "Bergel": ("jake bergel", "jabthat2394"),
     "Noach": ("noah bressler", "noahrb9168341", "9rajonrondo"),
-    "Wechs": ("avi wechsler", "avi110", "wechsler"),
+    "Wechs": ("avi wechsler", "avi110", "wechsler", "ollie wechsler", "ollie wexler", "wexler"),
     "Josh": ("josh goldstein", "jrsport69"),
     "Elisha": ("elisha galler", "egall16"),
     "Yossi": ("yosef vaitsblit", "yv23", "ye v", "y v"),

@@ -434,7 +434,7 @@
 
         <section class="debug" aria-label="Walk check">
             <h2>Walk check</h2>
-            <p class="note">Each year puts the bracket walk next to the sheet. A shaded row is a place they do not agree on. The note says why.</p>
+            <p class="note">Each year puts the bracket walk next to the sheet. The walk only has places when the teams in those weeks played the games the bracket calls for. A shaded row is a place they do not agree on. The note says why.</p>
             {% for check in checks or [] %}
             <details{% if check.differs %} open{% endif %}>
                 <summary>{{ check.summary }}</summary>

@@ -191,7 +191,7 @@ def _check_season(season: Season, title: Title | None) -> SeasonCheck:
         else:
             summary = f"{season.year} — walk matches the sheet"
     else:
-        summary = f"{season.year} — walk did not finish"
+        summary = f"{season.year} — could not follow the bracket"
     roster = tuple(
         (team, owner, sheet_name_for(owner) or "not linked") for team, owner in title.roster
     )
@@ -399,7 +399,10 @@ def _detail_twelve(
 ) -> str:
     playoff = weeks[-TWELVE_TEAM_PLAYOFF_WEEKS:]
     clubs = _clubs(teams, indexes[-TWELVE_TEAM_PLAYOFF_WEEKS])
-    lines = _seed_and_weeks(clubs, year, 6, playoff)
+    lines = [
+        "The walk uses the last three weeks that had scores and tries to replay the playoffs.",
+        *_seed_and_weeks(clubs, year, 6, playoff),
+    ]
     if walked is None:
         lines.append(_twelve_gap(clubs, year, playoff))
     else:
@@ -416,7 +419,10 @@ def _detail_ten(
 ) -> str:
     tail = weeks[-TEN_TEAM_SPAN:]
     clubs = _clubs(teams, indexes[-TEN_TEAM_SPAN])
-    lines = _seed_and_weeks(clubs, year, 4, tail)
+    lines = [
+        "The walk uses the last four weeks that had scores and tries to replay the playoffs.",
+        *_seed_and_weeks(clubs, year, 4, tail),
+    ]
     combined = combine_weeks(tail[2], tail[3])
     if combined is None:
         lines.append(
@@ -437,9 +443,9 @@ def _seed_and_weeks(clubs: list[Club], year: int, count: int, weeks: list[list[G
     seed_list = ", ".join(
         f"{index} {person_label(club)}" for index, club in enumerate(seeds, start=1)
     )
-    lines = [f"Seeds: {seed_list}."]
+    lines = [f"Regular-season order: {seed_list}."]
     for index, games in enumerate(weeks, start=1):
-        lines.append(f"Playoff week {index}: {_games_text(games, by_id)}.")
+        lines.append(f"Week {index} of the weeks the walk checked: {_games_text(games, by_id)}.")
     return lines
 
 
@@ -481,13 +487,15 @@ def _winners_six_gap(seeds: list[Club], rounds: list[list[Game]]) -> str | None:
     high = game_between(rounds[0], fourth.team_id, fifth.team_id)
     if low is None:
         return (
-            f"The first playoff week does not have 3rd seed {person_label(third)} "
-            f"against 6th seed {person_label(sixth)}."
+            f"To follow the bracket, {person_label(third)} (3rd in the regular season) "
+            f"has to play {person_label(sixth)} (6th) in week 1 of those. "
+            "They did not play, so the walk has no places."
         )
     if high is None:
         return (
-            f"The first playoff week does not have 4th seed {person_label(fourth)} "
-            f"against 5th seed {person_label(fifth)}."
+            f"To follow the bracket, {person_label(fourth)} (4th in the regular season) "
+            f"has to play {person_label(fifth)} (5th) in week 1 of those. "
+            "They did not play, so the walk has no places."
         )
     low_winner = winner_id(low)
     high_winner = winner_id(high)
@@ -505,13 +513,15 @@ def _winners_six_gap(seeds: list[Club], rounds: list[list[Game]]) -> str | None:
     semi_two = game_between(rounds[1], second.team_id, low_winner)
     if semi_one is None:
         return (
-            f"The second playoff week does not have 1st seed {person_label(first)} "
-            f"against {person_label(_club(seeds, high_winner))}."
+            f"In week 2 of those, {person_label(first)} (1st in the regular season) "
+            f"has to play {person_label(_club(seeds, high_winner))}. "
+            "They did not play, so the walk has no places."
         )
     if semi_two is None:
         return (
-            f"The second playoff week does not have 2nd seed {person_label(second)} "
-            f"against {person_label(_club(seeds, low_winner))}."
+            f"In week 2 of those, {person_label(second)} (2nd in the regular season) "
+            f"has to play {person_label(_club(seeds, low_winner))}. "
+            "They did not play, so the walk has no places."
         )
     finalist_one = winner_id(semi_one)
     finalist_two = winner_id(semi_two)
@@ -528,9 +538,10 @@ def _winners_six_gap(seeds: list[Club], rounds: list[list[Game]]) -> str | None:
     final = game_between(rounds[2], finalist_one, finalist_two)
     if final is None:
         return (
-            "The last playoff week does not have "
-            f"{person_label(_club(seeds, finalist_one))} against "
-            f"{person_label(_club(seeds, finalist_two))}."
+            "In the last of those weeks, "
+            f"{person_label(_club(seeds, finalist_one))} has to play "
+            f"{person_label(_club(seeds, finalist_two))} for the title. "
+            "They did not play, so the walk has no places."
         )
     if winner_id(final) is None:
         return "The final tied."
@@ -545,13 +556,15 @@ def _winners_four_gap(seeds: list[Club], rounds: list[list[Game]]) -> str | None
     low = game_between(rounds[0], two.team_id, three.team_id)
     if high is None:
         return (
-            f"The first playoff week does not have 1st seed {person_label(one)} "
-            f"against 4th seed {person_label(four)}."
+            f"To follow the bracket, {person_label(one)} (1st in the regular season) "
+            f"has to play {person_label(four)} (4th) in week 1 of those. "
+            "They did not play, so the walk has no places."
         )
     if low is None:
         return (
-            f"The first playoff week does not have 2nd seed {person_label(two)} "
-            f"against 3rd seed {person_label(three)}."
+            f"To follow the bracket, {person_label(two)} (2nd in the regular season) "
+            f"has to play {person_label(three)} (3rd) in week 1 of those. "
+            "They did not play, so the walk has no places."
         )
     if winner_id(high) is None:
         return f"{person_label(one)} and {person_label(four)} tied, so nobody advanced."
@@ -574,18 +587,14 @@ def _losers_gap(seeds: list[Club], rounds: list[list[Game]]) -> str:
     if len(seeds) != 6 or len(rounds) < 3:
         return "The losers' bracket needs six teams and three rounds."
     one, two, three, four, five, six = seeds
-    expected = (
-        (one, six, "1", "6"),
-        (two, five, "2", "5"),
-        (three, four, "3", "4"),
-    )
+    expected = ((one, six), (two, five), (three, four))
     opening: list[Game] = []
-    for left, right, left_seed, right_seed in expected:
+    for left, right in expected:
         game = game_between(rounds[0], left.team_id, right.team_id)
         if game is None:
             return (
-                f"Losers' seed {left_seed} {person_label(left)} did not play "
-                f"losers' seed {right_seed} {person_label(right)} in the first playoff week."
+                f"On the losers' side, {person_label(left)} has to play {person_label(right)} "
+                "in week 1 of those. They did not play, so the walk has no places."
             )
         if winner_id(game) is None:
             return f"{person_label(left)} and {person_label(right)} tied in the losers' bracket."

@@ -236,7 +236,7 @@ def test_history() -> bool:
                 titles={2013: missing},
                 checks=season_checks({2013: missing}),
             )
-        assert "2013 — walk did not finish" in blank
+        assert "2013 — could not follow the bracket" in blank
         assert "Some Club — Noah Last — not linked" in blank
         assert ">Sheet</span> Henry" in blank
         assert page.count('<details class="season"') == 15

@@ -171,6 +171,8 @@ def test_owner_token() -> None:
     assert not owner_matches("Jake Bergel", "Henry")
     assert sheet_name_for("Noah Bressler") == "Noach"
     assert sheet_name_for("avi wechsler · avi110") == "Wechs"
+    assert sheet_name_for("Ollie Wexler") == "Wechs"
+    assert sheet_name_for("Joseph Solomon") == "Joe"
     assert sheet_name_for("YE V · YV23") == "Yossi"
     assert sheet_name_for("Yosef Vaitsblit") == "Yossi"
     assert sheet_name_for("jon avraham · johnthe bomb") == "Goggles"
@@ -206,8 +208,9 @@ def test_missing_game_names_the_seeds() -> None:
     title = read_season(teams, 2024, "Eli")
     assert title is not None
     assert title.places == ()
-    assert "3rd seed Henry (Club 3)" in title.walk
-    assert "6th seed Noach (Club 6)" in title.walk
+    assert "Henry (Club 3)" in title.walk
+    assert "Noach (Club 6)" in title.walk
+    assert "They did not play" in title.walk
 
 
 def test_check_marks_a_swap_and_an_unordered_pair() -> None:

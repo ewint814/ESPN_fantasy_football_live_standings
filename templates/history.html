@@ -217,6 +217,38 @@
             margin-left: 4px;
         }
 
+        .debug {
+            margin: 4px 0 22px;
+        }
+
+        .debug h2 {
+            font-size: 1.05em;
+            margin-bottom: 4px;
+        }
+
+        .debug details {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-top: 8px;
+            padding: 8px 12px;
+        }
+
+        .debug summary {
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .debug ul,
+        .debug ol {
+            margin: 6px 0 0 18px;
+            font-size: 0.88em;
+        }
+
+        .debug li {
+            margin: 2px 0;
+        }
+
         .seasons {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -366,6 +398,34 @@
         {% for note in title_notes or [] %}
         <p class="note">{{ note }}</p>
         {% endfor %}
+
+        <section class="debug" aria-label="ESPN name check">
+            <h2>Name check</h2>
+            <p class="note">Each line is a team and the owner spelling ESPN has for that year. A champion stays without a team name when none of those first names match the sheet.</p>
+            {% for season in seasons %}
+            {% set found = (titles or {}).get(season.year) %}
+            <details{% if not found or not found.team_name %} open{% endif %}>
+                <summary>{{ season.year }} {{ season.champion }}{% if found and found.team_name %} — {{ found.team_name }}{% else %} — no team name{% endif %}</summary>
+                {% if found %}
+                <p class="note">{{ found.walk }}</p>
+                {% if found.places %}
+                <ol>
+                    {% for place, team, owner in found.places %}
+                    <li value="{{ place }}">{{ team }} — {{ owner }}</li>
+                    {% endfor %}
+                </ol>
+                {% endif %}
+                <ul>
+                    {% for team, owner in found.roster %}
+                    <li>{{ team }} — {{ owner }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="note">ESPN did not return this season.</p>
+                {% endif %}
+            </details>
+            {% endfor %}
+        </section>
 
         <p class="tally-label">By person</p>
         <ul class="tally" aria-label="Championships by person">

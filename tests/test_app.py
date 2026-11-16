@@ -214,7 +214,26 @@ def test_history() -> bool:
         assert "Club Bergel" in bergel_row and "Bergel" in bergel_row
         assert "plate-owner" in bergel_row
         assert "2016 sheet Bergel, matchups Eli Last (Club Eli)" in engraved
-        assert page.count("<details") == 15
+        assert "Name check" in engraved
+        with app.app_context():
+            blank = render_template(
+                "history.html",
+                rings=ring_counts(),
+                seasons=season_views(),
+                titles={
+                    2013: Title(
+                        2013,
+                        "",
+                        "",
+                        False,
+                        walk="No bracket walk for this year.",
+                        roster=(("Some Club", "Noah Last"),),
+                    )
+                },
+            )
+        assert "2013 Henry — no team name" in blank
+        assert "Some Club — Noah Last" in blank
+        assert page.count('<details class="season"') == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page
         assert 'id="toggleSeasons"' in page

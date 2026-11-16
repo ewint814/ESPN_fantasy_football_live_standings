@@ -105,6 +105,10 @@ def test_walk_matches_the_sheet_champion() -> None:
     assert title.team_name == "Club 1"
     assert title.owner == "Eli Last"
     assert title.note == ""
+    assert len(title.roster) == 12
+    assert (1, "Club 1", "Eli Last") in title.places
+    assert (7, "Club 7", "Wechs Last") in title.places
+    assert all(place not in {3, 4, 5, 6} for place, _team, _owner in title.places)
 
 
 def test_walk_disagreement_is_a_note() -> None:
@@ -148,6 +152,14 @@ def test_losers_order() -> None:
     assert [club.team_id for club in places] == [7, 8, 9, 10, 11, 12]
 
 
+def test_missing_name_still_lists_espn_owners() -> None:
+    title = read_season(twelve_team_season(), 2014, "Goggles")
+    assert title is not None
+    assert title.team_name == ""
+    assert title.walk == "No bracket walk for this year."
+    assert ("Club 1", "Eli Last") in title.roster
+
+
 def test_owner_token() -> None:
     assert owner_matches("Eli Last", "Eli")
     assert not owner_matches("Elijah Last", "Eli")
@@ -159,6 +171,7 @@ def main() -> None:
     test_losers_order()
     test_walk_matches_the_sheet_champion()
     test_walk_disagreement_is_a_note()
+    test_missing_name_still_lists_espn_owners()
     print("bracket ok")
 
 

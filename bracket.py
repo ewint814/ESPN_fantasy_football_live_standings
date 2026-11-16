@@ -9,6 +9,8 @@ whose scores are the two weeks added together.
 
 from dataclasses import dataclass
 
+from league_history import sheet_name_for
+
 
 @dataclass(frozen=True)
 class Club:
@@ -19,6 +21,14 @@ class Club:
     owner: str
     wins: int
     points_for: float
+
+
+@dataclass(frozen=True)
+class Placed:
+    """A losers'-bracket place and the game that put this team there."""
+
+    club: Club
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -33,8 +43,18 @@ class Game:
 
 def owner_matches(owner: str, sheet_name: str) -> bool:
     """True when an ESPN owner name is the same person as a sheet nickname."""
-    tokens = [part.strip(".,").lower() for part in owner.split() if part.strip(".,")]
-    return sheet_name.lower() in tokens
+    return sheet_name_for(owner) == sheet_name
+
+
+def person_label(club: Club) -> str:
+    """Sheet nickname plus team, or the ESPN spelling when the name is not linked."""
+    team = club.name.strip()
+    nick = sheet_name_for(club.owner)
+    if nick:
+        return f"{nick} ({team})"
+    if club.owner:
+        return f"{club.owner} ({team})"
+    return team
 
 
 def winner_id(game: Game) -> int | None:
@@ -185,7 +205,7 @@ def winners_four(
     )
 
 
-def losers_six(seeds: list[Club], rounds: list[list[Game]]) -> list[Club] | None:
+def losers_six(seeds: list[Club], rounds: list[list[Game]]) -> list[Placed] | None:
     """Six-team losers' bracket, best place first.
 
     Opening games are 1 vs 6, 2 vs 5, 3 vs 4. The best winner waits for the
@@ -229,11 +249,25 @@ def losers_six(seeds: list[Club], rounds: list[list[Game]]) -> list[Club] | None
         return None
     if winner_id(final) is None or winner_id(sacko) is None:
         return None
+    final_winner = _club(seeds, winner_id(final) or 0)
+    final_loser = _club(seeds, loser_id(final) or 0)
+    middle_winner = _club(seeds, winner_id(middle_winners) or 0)
+    middle_dropped = _club(seeds, loser_id(middle_winners) or 0)
+    consolation_winner = _club(seeds, winner_id(middle_losers) or 0)
+    consolation_loser = _club(seeds, loser_id(middle_losers) or 0)
+    sacko_winner = _club(seeds, winner_id(sacko) or 0)
+    sacko_loser = _club(seeds, loser_id(sacko) or 0)
     return [
-        _club(seeds, winner_id(final) or 0),
-        _club(seeds, loser_id(final) or 0),
-        _club(seeds, loser_id(middle_winners) or 0),
-        _club(seeds, winner_id(middle_losers) or 0),
-        _club(seeds, winner_id(sacko) or 0),
-        _club(seeds, loser_id(sacko) or 0),
+        Placed(final_winner, f"Won the losers' final against {person_label(final_loser)}."),
+        Placed(final_loser, f"Lost the losers' final to {person_label(final_winner)}."),
+        Placed(
+            middle_dropped,
+            f"Lost the middle-round game on the winners' side of the losers' bracket to {person_label(middle_winner)}.",
+        ),
+        Placed(
+            consolation_winner,
+            f"Won the middle-round game on the losers' side of the losers' bracket against {person_label(consolation_loser)}.",
+        ),
+        Placed(sacko_winner, f"Won the Sacko game against {person_label(sacko_loser)}."),
+        Placed(sacko_loser, f"Lost the Sacko game to {person_label(sacko_winner)}."),
     ]

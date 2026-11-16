@@ -239,14 +239,47 @@
             font-weight: 600;
         }
 
-        .debug ul,
-        .debug ol {
+        .debug ul {
             margin: 6px 0 0 18px;
             font-size: 0.88em;
         }
 
         .debug li {
             margin: 2px 0;
+        }
+
+        .check-row {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 8px 0;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+        }
+
+        .check-row.diff {
+            background: #fff4f4;
+            margin: 0 -12px;
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+
+        .check-place {
+            font-weight: 650;
+        }
+
+        .check-k {
+            color: #888;
+            display: inline-block;
+            width: 3.2em;
+        }
+
+        .check-why {
+            color: #444;
+        }
+
+        .walk-line {
+            white-space: pre-line;
         }
 
         .seasons {
@@ -399,29 +432,30 @@
         <p class="note">{{ note }}</p>
         {% endfor %}
 
-        <section class="debug" aria-label="ESPN name check">
-            <h2>Name check</h2>
-            <p class="note">Each line is a team and the owner spelling ESPN has for that year. A champion stays without a team name when none of those first names match the sheet.</p>
-            {% for season in seasons %}
-            {% set found = (titles or {}).get(season.year) %}
-            <details{% if not found or not found.team_name %} open{% endif %}>
-                <summary>{{ season.year }} {{ season.champion }}{% if found and found.team_name %} — {{ found.team_name }}{% else %} — no team name{% endif %}</summary>
-                {% if found %}
-                <p class="note">{{ found.walk }}</p>
-                {% if found.places %}
-                <ol>
-                    {% for place, team, owner in found.places %}
-                    <li value="{{ place }}">{{ team }} — {{ owner }}</li>
-                    {% endfor %}
-                </ol>
-                {% endif %}
-                <ul>
-                    {% for team, owner in found.roster %}
-                    <li>{{ team }} — {{ owner }}</li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <p class="note">ESPN did not return this season.</p>
+        <section class="debug" aria-label="Walk check">
+            <h2>Walk check</h2>
+            <p class="note">Each year puts the bracket walk next to the sheet. The walk only has places when the teams in those weeks played the games the bracket calls for. A shaded row is a place they do not agree on. The note says why.</p>
+            {% for check in checks or [] %}
+            <details{% if check.differs %} open{% endif %}>
+                <summary>{{ check.summary }}</summary>
+                <p class="note walk-line">{{ check.walk_line }}</p>
+                {% for row in check.rows %}
+                <div class="check-row{% if row.differs %} diff{% endif %}">
+                    <span class="check-place">{{ row.label }}</span>
+                    <span class="check-side"><span class="check-k">Walk</span> {{ row.walk }}</span>
+                    <span class="check-side"><span class="check-k">Sheet</span> {{ row.sheet }}</span>
+                    {% if row.why %}<span class="check-why">{{ row.why }}</span>{% endif %}
+                </div>
+                {% endfor %}
+                {% if check.roster %}
+                <details>
+                    <summary>ESPN names</summary>
+                    <ul>
+                        {% for team, owner, linked in check.roster %}
+                        <li>{{ team }} — {{ owner }} — {{ linked }}</li>
+                        {% endfor %}
+                    </ul>
+                </details>
                 {% endif %}
             </details>
             {% endfor %}

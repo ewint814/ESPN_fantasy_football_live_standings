@@ -183,6 +183,56 @@ SEASONS: tuple[Season, ...] = (
 )
 
 
+# Whole-word spellings ESPN uses for a sheet nickname.
+# Eli confirmed these: Henry is jake h, Joe is Joseph Solomont,
+# Noach is Noah Bressler, Yossi is Yosef Vaitsblit.
+# Wechs is Ollie Wechsler. ESPN writes that account "avi wechsler".
+# Goggles is the 2011 account that is not one of the other seven: jon avraham.
+ALIASES: dict[str, tuple[str, ...]] = {
+    "Joe": ("joseph solomont", "joseph solomon", "bsportsfan96"),
+    "Henry": ("jake h", "nosoup4ya"),
+    "Bergel": ("jake bergel", "jabthat2394"),
+    "Noach": ("noah bressler", "noahrb9168341", "9rajonrondo"),
+    "Wechs": ("avi wechsler", "avi110", "wechsler", "ollie wechsler", "ollie wexler", "wexler"),
+    "Josh": ("josh goldstein", "jrsport69"),
+    "Elisha": ("elisha galler", "egall16"),
+    "Yossi": ("yosef vaitsblit", "yv23", "ye v", "y v"),
+    "Austin": ("austin edelman", "yaust14"),
+    "Ezra": ("ezra schwartz", "ezra1001"),
+    "Goggles": ("jon avraham", "johnthe bomb"),
+    "Jared": ("jared shein", "iamdude12"),
+    "Tuvia": ("tuvia oxman", "tuvz"),
+}
+
+
+def _words(text: str) -> str:
+    return " ".join(text.lower().replace("·", " ").split())
+
+
+def _has_phrase(text: str, phrase: str) -> bool:
+    return f" {phrase} " in f" {text} "
+
+
+def sheet_name_for(owner: str) -> str | None:
+    """Sheet nickname for an ESPN owner string, or None when it is not linked."""
+    text = _words(owner)
+    if not text:
+        return None
+    found: list[tuple[int, str]] = []
+    for name, phrases in ALIASES.items():
+        for phrase in phrases:
+            if _has_phrase(text, phrase):
+                found.append((len(phrase), name))
+    if found:
+        found.sort(reverse=True)
+        return found[0][1]
+    tokens = [part.strip(".,") for part in text.split() if part.strip(".,")]
+    for name in SHEET_ORDER:
+        if name.lower() in tokens:
+            return name
+    return None
+
+
 def ordinal(place: int) -> str:
     """1st, 2nd, 3rd, 4th."""
     if 10 <= place % 100 <= 20:

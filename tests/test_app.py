@@ -156,6 +156,7 @@ def test_history() -> bool:
     try:
         from flask import Flask, render_template
 
+        from espn_history import season_checks
         from league_history import champion, ring_counts, season_views
 
         assert champion(2025) == "Bergel"
@@ -186,6 +187,7 @@ def test_history() -> bool:
                 "history.html",
                 rings=ring_counts(),
                 seasons=season_views(),
+                checks=season_checks({}),
             )
         assert "Schmacked History" in page
         assert 'href="/"' in page
@@ -209,30 +211,34 @@ def test_history() -> bool:
                 seasons=season_views(),
                 titles={2025: Title(2025, "Club Bergel", "Bergel Last", True)},
                 title_notes=["2016 sheet Bergel, matchups Eli Last (Club Eli)"],
+                checks=season_checks({2025: Title(2025, "Club Bergel", "Bergel Last", True)}),
             )
         bergel_row = engraved.split('class="plate-row"')[-1]
         assert "Club Bergel" in bergel_row and "Bergel" in bergel_row
         assert "plate-owner" in bergel_row
         assert "2016 sheet Bergel, matchups Eli Last (Club Eli)" in engraved
-        assert "Name check" in engraved
+        assert "Walk check" in engraved
+        assert "Walk check" in page
+        assert "2025 — ESPN did not return this season" in page
         with app.app_context():
+            missing = Title(
+                2013,
+                "",
+                "",
+                False,
+                walk="No bracket walk for this year.",
+                roster=(("Some Club", "Noah Last"),),
+            )
             blank = render_template(
                 "history.html",
                 rings=ring_counts(),
                 seasons=season_views(),
-                titles={
-                    2013: Title(
-                        2013,
-                        "",
-                        "",
-                        False,
-                        walk="No bracket walk for this year.",
-                        roster=(("Some Club", "Noah Last"),),
-                    )
-                },
+                titles={2013: missing},
+                checks=season_checks({2013: missing}),
             )
-        assert "2013 Henry — no team name" in blank
-        assert "Some Club — Noah Last" in blank
+        assert "2013 — could not follow the bracket" in blank
+        assert "Some Club — Noah Last — not linked" in blank
+        assert ">Sheet</span> Henry" in blank
         assert page.count('<details class="season"') == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page

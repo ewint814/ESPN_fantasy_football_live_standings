@@ -21,7 +21,7 @@ import pytz
 
 # Import local modules
 from config import Config
-from espn_history import load_titles
+from espn_history import load_titles, season_checks
 from league_history import SEASONS, ring_counts, season_views
 from nfl_utils import NFLSeasonHelper
 from constants import (
@@ -809,6 +809,7 @@ class FantasyTracker:
                 seasons=season_views(),
                 titles=titles,
                 title_notes=notes,
+                checks=season_checks(titles),
             )
 
         @self.app.route('/manifest.webmanifest')

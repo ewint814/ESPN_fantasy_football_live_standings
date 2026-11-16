@@ -1,0 +1,235 @@
+"""Playoff places from the league's bracket, scored off weekly matchups.
+
+ESPN's saved final rank follows its own playoff. This league does not.
+The weeks and the scores still come from ESPN. Who advanced is decided here.
+
+A round is a list of games already totaled. A two-week matchup is one game
+whose scores are the two weeks added together.
+"""
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Club:
+    """One franchise for one season."""
+
+    team_id: int
+    name: str
+    owner: str
+    wins: int
+    points_for: float
+
+
+@dataclass(frozen=True)
+class Game:
+    """One matchup, already totaled if it covered more than one NFL week."""
+
+    home_id: int
+    away_id: int
+    home_score: float
+    away_score: float
+
+
+def owner_matches(owner: str, sheet_name: str) -> bool:
+    """True when an ESPN owner name is the same person as a sheet nickname."""
+    tokens = [part.strip(".,").lower() for part in owner.split() if part.strip(".,")]
+    return sheet_name.lower() in tokens
+
+
+def winner_id(game: Game) -> int | None:
+    """The team that scored more. A tie has no winner."""
+    if game.home_score > game.away_score:
+        return game.home_id
+    if game.away_score > game.home_score:
+        return game.away_id
+    return None
+
+
+def loser_id(game: Game) -> int | None:
+    """The team that scored less."""
+    won = winner_id(game)
+    if won is None:
+        return None
+    return game.away_id if won == game.home_id else game.home_id
+
+
+def game_between(games: list[Game], first: int, second: int) -> Game | None:
+    """The game between these two teams, home or away."""
+    pair = {first, second}
+    for game in games:
+        if {game.home_id, game.away_id} == pair:
+            return game
+    return None
+
+
+def combine_weeks(first: list[Game], second: list[Game]) -> list[Game] | None:
+    """Add a second week onto the same pairings. None when the pairings differ."""
+    totals: list[Game] = []
+    used: set[int] = set()
+    for game in first:
+        match = game_between(second, game.home_id, game.away_id)
+        if match is None:
+            return None
+        used.add(id(match))
+        same_home = match.home_id == game.home_id
+        away_score = match.away_score if same_home else match.home_score
+        home_score = match.home_score if same_home else match.away_score
+        totals.append(
+            Game(
+                game.home_id,
+                game.away_id,
+                game.home_score + home_score,
+                game.away_score + away_score,
+            )
+        )
+    if len(used) != len(second):
+        return None
+    return totals
+
+
+def rank_clubs(clubs: list[Club]) -> list[Club]:
+    """Regular-season order: more wins, then more points."""
+    return sorted(clubs, key=lambda club: (-club.wins, -club.points_for, club.team_id))
+
+
+def winners_seeds(clubs: list[Club], year: int, count: int) -> list[Club]:
+    """Playoff seeds. From 2025 the last seed is the points leader among the rest."""
+    ranked = rank_clubs(clubs)
+    if year >= 2025 and count == 6:
+        top = ranked[:5]
+        rest = ranked[5:]
+        sixth = max(rest, key=lambda club: (club.points_for, -ranked.index(club)))
+        return top + [sixth]
+    return ranked[:count]
+
+
+def losers_seeds(clubs: list[Club], year: int, winners: int) -> list[Club]:
+    """Everyone who missed the winners' bracket, best regular-season team first."""
+    taken = {club.team_id for club in winners_seeds(clubs, year, winners)}
+    return [club for club in rank_clubs(clubs) if club.team_id not in taken]
+
+
+def _club(seeds: list[Club], team_id: int) -> Club:
+    for club in seeds:
+        if club.team_id == team_id:
+            return club
+    raise KeyError(team_id)
+
+
+def winners_six(seeds: list[Club], rounds: list[list[Game]]) -> tuple[Club, Club] | None:
+    """12-team winners' side. Seeds 1 and 2 bye. 3 plays 6, 4 plays 5.
+
+    Seed 1 then plays the winner of 4 vs 5. Seed 2 plays the winner of 3 vs 6.
+    The last round is the final. Returns the champion and the runner-up.
+    """
+    if len(seeds) != 6 or len(rounds) < 3:
+        return None
+    first, second, third, fourth, fifth, sixth = seeds
+    low = game_between(rounds[0], third.team_id, sixth.team_id)
+    high = game_between(rounds[0], fourth.team_id, fifth.team_id)
+    if low is None or high is None:
+        return None
+    low_winner = winner_id(low)
+    high_winner = winner_id(high)
+    if low_winner is None or high_winner is None:
+        return None
+    semi_one = game_between(rounds[1], first.team_id, high_winner)
+    semi_two = game_between(rounds[1], second.team_id, low_winner)
+    if semi_one is None or semi_two is None:
+        return None
+    finalist_one = winner_id(semi_one)
+    finalist_two = winner_id(semi_two)
+    if finalist_one is None or finalist_two is None:
+        return None
+    final = game_between(rounds[2], finalist_one, finalist_two)
+    if final is None or winner_id(final) is None:
+        return None
+    champion = _club(seeds, winner_id(final) or 0)
+    runner = _club(seeds, loser_id(final) or 0)
+    return champion, runner
+
+
+def winners_four(
+    seeds: list[Club], rounds: list[list[Game]]
+) -> tuple[Club, Club, Club, Club] | None:
+    """Four-team winners' side. 1 vs 4, 2 vs 3, then the final and the 3rd-place game."""
+    if len(seeds) != 4 or len(rounds) < 2:
+        return None
+    one, two, three, four = seeds
+    high = game_between(rounds[0], one.team_id, four.team_id)
+    low = game_between(rounds[0], two.team_id, three.team_id)
+    if high is None or low is None:
+        return None
+    high_winner = winner_id(high)
+    low_winner = winner_id(low)
+    high_loser = loser_id(high)
+    low_loser = loser_id(low)
+    if None in (high_winner, low_winner, high_loser, low_loser):
+        return None
+    final = game_between(rounds[1], high_winner or 0, low_winner or 0)
+    third = game_between(rounds[1], high_loser or 0, low_loser or 0)
+    if final is None or third is None:
+        return None
+    if winner_id(final) is None or winner_id(third) is None:
+        return None
+    return (
+        _club(seeds, winner_id(final) or 0),
+        _club(seeds, loser_id(final) or 0),
+        _club(seeds, winner_id(third) or 0),
+        _club(seeds, loser_id(third) or 0),
+    )
+
+
+def losers_six(seeds: list[Club], rounds: list[list[Game]]) -> list[Club] | None:
+    """Six-team losers' bracket, best place first.
+
+    Opening games are 1 vs 6, 2 vs 5, 3 vs 4. The best winner waits for the
+    losers' final. The worst loser waits for the Sacko. The other winners play,
+    and the other losers play. Then winner plays winner, and loser plays loser.
+    """
+    if len(seeds) != 6 or len(rounds) < 3:
+        return None
+    one, two, three, four, five, six = seeds
+    opening = [
+        game_between(rounds[0], one.team_id, six.team_id),
+        game_between(rounds[0], two.team_id, five.team_id),
+        game_between(rounds[0], three.team_id, four.team_id),
+    ]
+    if any(game is None for game in opening):
+        return None
+    won: list[Club] = []
+    lost: list[Club] = []
+    for game in opening:
+        if game is None or winner_id(game) is None:
+            return None
+        won.append(_club(seeds, winner_id(game) or 0))
+        lost.append(_club(seeds, loser_id(game) or 0))
+
+    def seed_of(club: Club) -> int:
+        return next(index for index, seed in enumerate(seeds) if seed.team_id == club.team_id)
+
+    bye = min(won, key=seed_of)
+    sacko_bye = max(lost, key=seed_of)
+    other_winners = [club for club in won if club.team_id != bye.team_id]
+    other_losers = [club for club in lost if club.team_id != sacko_bye.team_id]
+    middle_winners = game_between(rounds[1], other_winners[0].team_id, other_winners[1].team_id)
+    middle_losers = game_between(rounds[1], other_losers[0].team_id, other_losers[1].team_id)
+    if middle_winners is None or middle_losers is None:
+        return None
+    if winner_id(middle_winners) is None or winner_id(middle_losers) is None:
+        return None
+    final = game_between(rounds[2], bye.team_id, winner_id(middle_winners) or 0)
+    sacko = game_between(rounds[2], sacko_bye.team_id, loser_id(middle_losers) or 0)
+    if final is None or sacko is None:
+        return None
+    if winner_id(final) is None or winner_id(sacko) is None:
+        return None
+    return [
+        _club(seeds, winner_id(final) or 0),
+        _club(seeds, loser_id(final) or 0),
+        _club(seeds, loser_id(middle_winners) or 0),
+        _club(seeds, winner_id(middle_losers) or 0),
+        _club(seeds, winner_id(sacko) or 0),
+        _club(seeds, loser_id(sacko) or 0),
+    ]

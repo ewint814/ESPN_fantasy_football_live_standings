@@ -145,23 +145,29 @@
 
         .plate-row {
             display: flex;
-            align-items: baseline;
+            align-items: center;
             gap: 8px;
             padding: 3px 4px;
             font-family: Palatino, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
         }
 
         .plate-year,
-        .plate-name {
-            white-space: nowrap;
+        .plate-name,
+        .plate-owner {
             letter-spacing: 0.08em;
             text-transform: uppercase;
+        }
+
+        .plate-stack {
+            text-align: right;
+            max-width: 16em;
         }
 
         .plate-year {
             color: #c8c3b8;
             font-variant-numeric: tabular-nums;
             font-size: 0.84em;
+            white-space: nowrap;
         }
 
         .plate-leader {
@@ -172,6 +178,15 @@
 
         .plate-name {
             font-size: 1.02em;
+            text-align: right;
+        }
+
+        .plate-owner {
+            display: block;
+            margin-top: 1px;
+            font-size: 0.72em;
+            letter-spacing: 0.06em;
+            color: #b7b2a6;
         }
 
         .tally-label {
@@ -330,15 +345,27 @@
                     <p class="plate-kicker">Schmacked</p>
                     <div class="plate-rule"></div>
                     {% for season in seasons|reverse %}
+                    {% set found = (titles or {}).get(season.year) %}
                     <div class="plate-row">
                         <span class="plate-year">{{ season.year }}</span>
                         <span class="plate-leader" aria-hidden="true"></span>
+                        {% if found and found.agrees and found.team_name %}
+                        <span class="plate-stack">
+                            <span class="plate-name">{{ found.team_name }}</span>
+                            <span class="plate-owner">{{ season.champion }}</span>
+                        </span>
+                        {% else %}
                         <span class="plate-name">{{ season.champion }}</span>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
             </section>
         </div>
+
+        {% for note in title_notes or [] %}
+        <p class="note">{{ note }}</p>
+        {% endfor %}
 
         <p class="tally-label">By person</p>
         <ul class="tally" aria-label="Championships by person">

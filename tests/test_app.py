@@ -200,6 +200,20 @@ def test_history() -> bool:
         assert tally.count("<li>") == 7
         assert "Eli" in tally and ">5<" in tally
         assert "Wechs" in tally and ">1<" in tally
+        from espn_history import Title
+
+        with app.app_context():
+            engraved = render_template(
+                "history.html",
+                rings=ring_counts(),
+                seasons=season_views(),
+                titles={2025: Title(2025, "Club Bergel", "Bergel Last", True)},
+                title_notes=["2016 sheet Bergel, matchups Eli Last (Club Eli)"],
+            )
+        bergel_row = engraved.split('class="plate-row"')[-1]
+        assert "Club Bergel" in bergel_row and "Bergel" in bergel_row
+        assert "plate-owner" in bergel_row
+        assert "2016 sheet Bergel, matchups Eli Last (Club Eli)" in engraved
         assert page.count("<details") == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page

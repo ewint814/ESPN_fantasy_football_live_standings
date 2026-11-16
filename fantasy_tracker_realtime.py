@@ -21,7 +21,8 @@ import pytz
 
 # Import local modules
 from config import Config
-from league_history import ring_counts, season_views
+from espn_history import load_titles
+from league_history import SEASONS, ring_counts, season_views
 from nfl_utils import NFLSeasonHelper
 from constants import (
     UPDATE_INTERVAL_ACTIVE_GAMES,
@@ -62,6 +63,7 @@ class FantasyTracker:
         self.current_week: int = self._get_current_week()
         self.game_clocks: Dict[str, Dict[str, Any]] = {}
         self.api_error: Optional[str] = None
+        self.espn_titles: Dict[int, Any] = {}
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
         
@@ -94,6 +96,7 @@ class FantasyTracker:
         
         # Start aggressive background updates for real-time experience
         self._start_score_updates()
+        threading.Thread(target=self._load_espn_history, daemon=True).start()
     
     def _connect_to_espn(self) -> bool:
         """Connect to ESPN Fantasy Football API with timeout."""
@@ -798,10 +801,14 @@ class FantasyTracker:
 
         @self.app.route('/history')
         def history() -> str:
+            titles = self.espn_titles
+            notes = [title.note for title in titles.values() if title.note]
             return render_template(
                 'history.html',
                 rings=ring_counts(),
                 seasons=season_views(),
+                titles=titles,
+                title_notes=notes,
             )
 
         @self.app.route('/manifest.webmanifest')
@@ -860,6 +867,22 @@ class FantasyTracker:
                 'current_week': self.current_week,
                 'real_time': True
             }), status_code
+
+    def _load_espn_history(self) -> None:
+        """Walk past seasons with the cookies already on this server."""
+        if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
+            return
+        years = [season.year for season in SEASONS]
+        try:
+            self.espn_titles = load_titles(
+                int(self.config.espn_league_id),
+                self.config.espn_s2,
+                self.config.espn_swid,
+                years,
+            )
+            logger.info("ESPN history loaded for %s seasons", len(self.espn_titles))
+        except Exception as exc:
+            logger.warning("ESPN history failed: %s", exc)
     
     def _render_dashboard(self) -> str:
         """Render dashboard with real-time SSE updates."""

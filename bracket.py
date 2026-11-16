@@ -117,7 +117,9 @@ def _club(seeds: list[Club], team_id: int) -> Club:
     raise KeyError(team_id)
 
 
-def winners_six(seeds: list[Club], rounds: list[list[Game]]) -> tuple[Club, Club] | None:
+def winners_six(
+    seeds: list[Club], rounds: list[list[Game]]
+) -> tuple[Club, Club, Club, Club] | None:
     """12-team winners' side. Seeds 1 and 2 bye. 3 plays 6, 4 plays 5.
 
     Seed 1 then plays the winner of 4 vs 5. Seed 2 plays the winner of 3 vs 6.
@@ -147,7 +149,9 @@ def winners_six(seeds: list[Club], rounds: list[list[Game]]) -> tuple[Club, Club
         return None
     champion = _club(seeds, winner_id(final) or 0)
     runner = _club(seeds, loser_id(final) or 0)
-    return champion, runner
+    semi_one_loser = _club(seeds, loser_id(semi_one) or 0)
+    semi_two_loser = _club(seeds, loser_id(semi_two) or 0)
+    return champion, runner, semi_one_loser, semi_two_loser
 
 
 def winners_four(

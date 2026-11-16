@@ -248,34 +248,97 @@
             margin: 2px 0;
         }
 
-        .check-row {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-            padding: 8px 0;
-            border-top: 1px solid #eee;
-            font-size: 0.9em;
+        .table-wrap {
+            overflow-x: auto;
+            margin: 8px 0 14px;
         }
 
-        .check-row.diff {
+        .check-table {
+            width: 100%;
+            min-width: 36rem;
+            border-collapse: collapse;
+            font-size: 0.88em;
+        }
+
+        .check-table th,
+        .check-table td {
+            text-align: left;
+            padding: 6px 8px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+            overflow-wrap: normal;
+            word-break: normal;
+        }
+
+        .check-table th {
+            color: #666;
+            font-weight: 600;
+        }
+
+        .check-table .num {
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+        }
+
+        @media (max-width: 640px) {
+            .check-table {
+                min-width: 0;
+            }
+
+            .check-table thead {
+                display: none;
+            }
+
+            .check-table tr {
+                display: block;
+                padding: 8px 0;
+                border-bottom: 1px solid #eee;
+            }
+
+            .check-table td {
+                display: block;
+                border: 0;
+                padding: 1px 0;
+            }
+
+            .check-table td[data-label]::before {
+                content: attr(data-label);
+                color: #888;
+                display: inline-block;
+                min-width: 4.6em;
+            }
+
+            .check-table td[data-label="Note"]:empty,
+            .check-table td[data-label="Why"]:empty {
+                display: none;
+            }
+
+            .check-table tr.game {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.2em 0.55em;
+                align-items: baseline;
+            }
+
+            .check-table tr.game td {
+                display: inline;
+                width: auto;
+                padding: 0;
+            }
+
+            .check-table tr.game td::before {
+                content: none;
+            }
+        }
+
+        .check-table tr.diff td {
             background: #fff4f4;
-            margin: 0 -12px;
-            padding-left: 12px;
-            padding-right: 12px;
         }
 
-        .check-place {
+        .week-label {
+            margin: 10px 0 0;
             font-weight: 650;
-        }
-
-        .check-k {
-            color: #888;
-            display: inline-block;
-            width: 3.2em;
-        }
-
-        .check-why {
-            color: #444;
+            font-size: 0.9em;
         }
 
         .walk-line {
@@ -434,19 +497,88 @@
 
         <section class="debug" aria-label="Walk check">
             <h2>Walk check</h2>
-            <p class="note">Each year puts the bracket walk next to the sheet. The walk only has places when the teams in those weeks played the games the bracket calls for. A shaded row is a place they do not agree on. The note says why.</p>
+            <p class="note">Each year shows the regular-season table, the playoff games, then the places next to the sheet. A shaded row is a place they do not agree on. From 2025 the 6 seed is the highest points total outside the top 5. If that team did not play the 3 seed, the table follows the team that did and says who had the points.</p>
             {% for check in checks or [] %}
             <details{% if check.differs %} open{% endif %}>
                 <summary>{{ check.summary }}</summary>
                 <p class="note walk-line">{{ check.walk_line }}</p>
-                {% for row in check.rows %}
-                <div class="check-row{% if row.differs %} diff{% endif %}">
-                    <span class="check-place">{{ row.label }}</span>
-                    <span class="check-side"><span class="check-k">Walk</span> {{ row.walk }}</span>
-                    <span class="check-side"><span class="check-k">Sheet</span> {{ row.sheet }}</span>
-                    {% if row.why %}<span class="check-why">{{ row.why }}</span>{% endif %}
+                {% if check.seeds %}
+                <div class="table-wrap">
+                    <table class="check-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Seed</th>
+                                <th>Team</th>
+                                <th>Record</th>
+                                <th>Points</th>
+                                <th>Note</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for seed in check.seeds %}
+                            <tr>
+                                <td class="num" data-label="Rank">{{ seed.rank }}</td>
+                                <td class="num" data-label="Seed">{{ seed.seed }}</td>
+                                <td data-label="Team">{{ seed.who }}</td>
+                                <td class="num" data-label="Record">{{ seed.record }}</td>
+                                <td class="num" data-label="Points">{{ seed.points }}</td>
+                                <td data-label="Note">{{ seed.note }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+                {% for week in check.weeks %}
+                <p class="week-label">{{ week.label }}</p>
+                <div class="table-wrap">
+                    <table class="check-table">
+                        <thead>
+                            <tr>
+                                <th>Home</th>
+                                <th></th>
+                                <th></th>
+                                <th>Away</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for game in week.games %}
+                            <tr class="game">
+                                <td>{{ game.home }}</td>
+                                <td class="num">{{ game.home_score }}</td>
+                                <td class="num">{{ game.away_score }}</td>
+                                <td>{{ game.away }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
                 {% endfor %}
+                {% if check.rows %}
+                <div class="table-wrap">
+                    <table class="check-table">
+                        <thead>
+                            <tr>
+                                <th>Place</th>
+                                <th>Walk</th>
+                                <th>Sheet</th>
+                                <th>Why</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in check.rows %}
+                            <tr{% if row.differs %} class="diff"{% endif %}>
+                                <td class="num" data-label="Place">{{ row.label }}</td>
+                                <td data-label="Walk">{{ row.walk }}</td>
+                                <td data-label="Sheet">{{ row.sheet }}</td>
+                                <td data-label="Why">{{ row.why }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
                 {% if check.roster %}
                 <details>
                     <summary>ESPN names</summary>

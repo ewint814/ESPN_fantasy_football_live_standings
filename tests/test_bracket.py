@@ -294,6 +294,11 @@ def test_top_six_score_adds_a_win_and_the_bottom_six_a_loss() -> None:
     assert by_name["Wechs"].points == "200.0"
     assert by_name["Yossi"].record == "0-2"
     assert by_name["Noach"].record == "1-1"
+    earlier = read_season(teams, 2022, "Eli")
+    assert earlier is not None
+    earlier_by_name = {row.who.split()[0]: row for row in earlier.seeds}
+    assert earlier_by_name["Eli"].record == "1-0"
+    assert earlier_by_name["Wechs"].record == "0-1"
 
 
 def test_played_sixth_beats_a_points_leader_who_sat() -> None:

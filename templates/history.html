@@ -497,7 +497,7 @@
 
         <section class="debug" aria-label="Walk check">
             <h2>Walk check</h2>
-            <p class="note">Each year shows the regular-season table, the playoff games, then the places next to the sheet. A shaded row is a place they do not agree on. From 2025 the 6 seed is the highest points total outside the top 5. If that team did not play the 3 seed, the table follows the team that did and says who had the points. In a 12-team season each week also gives a win to the six highest scores and a loss to the other six, on top of the head-to-head game. The last week on the NFL calendar is left out. Through 2020 that is week 17, so week 16 is the last week of the league. From 2021 it is week 18, so week 17 is the last week.</p>
+            <p class="note">Each year shows the regular-season table, the playoff games, then the places next to the sheet. A shaded row is a place they do not agree on. From 2025 the 6 seed is the highest points total outside the top 5. If that team did not play the 3 seed, the table follows the team that did and says who had the points. From 2023 on, a 12-team week also gives a win to the six highest scores and a loss to the other six, on top of the head-to-head game. The last week on the NFL calendar is left out. Through 2020 that is week 17, so week 16 is the last week of the league. From 2021 it is week 18, so week 17 is the last week.</p>
             {% for check in checks or [] %}
             <details{% if check.differs %} open{% endif %}>
                 <summary>{{ check.summary }}</summary>

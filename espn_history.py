@@ -840,14 +840,14 @@ def _games_at(teams: list[Any], index: int) -> list[Game]:
     return games
 
 
-def _score_bonus(teams: list[Any], end: int) -> dict[int, tuple[int, int]]:
+def _score_bonus(teams: list[Any], end: int, year: int) -> dict[int, tuple[int, int]]:
     """Extra win or loss each week. The six highest scores win, the other six lose.
 
-    This is the second matchup in a 12-team season. Points are not added again.
+    This second matchup starts in 2023. Points are not added again.
     A score tied with 6th place also wins.
     """
     bonus = {team.team_id: (0, 0) for team in teams}
-    if len(teams) < 12:
+    if year < 2023 or len(teams) < 12:
         return bonus
     wins = {team.team_id: 0 for team in teams}
     losses = {team.team_id: 0 for team in teams}
@@ -875,7 +875,7 @@ def _score_bonus(teams: list[Any], end: int) -> dict[int, tuple[int, int]]:
 def _clubs(teams: list[Any], through: int, year: int) -> list[Club]:
     """Wins and points before the playoffs, and never from the last NFL week."""
     end = min(through, _last_counting_week(year))
-    bonus = _score_bonus(teams, end)
+    bonus = _score_bonus(teams, end, year)
     clubs: list[Club] = []
     for team in teams:
         wins, losses = bonus[team.team_id]

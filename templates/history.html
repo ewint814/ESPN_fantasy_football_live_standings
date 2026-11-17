@@ -280,54 +280,131 @@
             font-variant-numeric: tabular-nums;
         }
 
+        .debug .phone-list {
+            display: none;
+            list-style: none;
+            margin: 6px 0 14px;
+            padding: 0;
+            font-size: 1em;
+        }
+
+        .debug .phone-list li {
+            margin: 0;
+            padding: 9px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .debug .phone-list li:last-child {
+            border-bottom: 0;
+        }
+
+        .phone-head {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+        }
+
+        .phone-seed {
+            flex: 0 0 auto;
+            min-width: 1.6em;
+            text-align: center;
+            font-weight: 700;
+            font-size: 1.05em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .phone-seed.out {
+            color: #bbb;
+            font-weight: 500;
+        }
+
+        .phone-name {
+            font-weight: 600;
+            font-size: 1em;
+        }
+
+        .phone-sub {
+            color: #666;
+            font-size: 0.86em;
+            margin: 2px 0 0 calc(1.6em + 10px);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .phone-note {
+            color: #8a5a00;
+            font-size: 0.84em;
+            margin: 3px 0 0 calc(1.6em + 10px);
+        }
+
+        .phone-game {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 3px 12px;
+            font-size: 0.95em;
+        }
+
+        .phone-game .score {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .phone-game .won {
+            font-weight: 700;
+        }
+
+        .phone-game .lost {
+            color: #777;
+        }
+
+        .phone-place.diff {
+            background: #fff4f4;
+            margin: 0 -12px;
+            padding-left: 12px;
+            padding-right: 12px;
+        }
+
+        .phone-place .phone-head {
+            gap: 8px;
+        }
+
+        .phone-place .place {
+            flex: 0 0 3.4em;
+            font-weight: 700;
+        }
+
+        .phone-place .pair {
+            font-size: 0.92em;
+        }
+
+        .phone-place .k {
+            color: #888;
+            display: inline-block;
+            min-width: 3.2em;
+        }
+
+        .phone-place .why {
+            color: #555;
+            font-size: 0.84em;
+            margin: 4px 0 0 calc(3.4em + 8px);
+        }
+
+        .match {
+            color: #2e7d32;
+            font-size: 0.84em;
+        }
+
         @media (max-width: 640px) {
-            .check-table {
-                min-width: 0;
-            }
-
-            .check-table thead {
+            .table-wrap {
                 display: none;
             }
 
-            .check-table tr {
+            .debug .phone-list {
                 display: block;
-                padding: 8px 0;
-                border-bottom: 1px solid #eee;
             }
 
-            .check-table td {
-                display: block;
-                border: 0;
-                padding: 1px 0;
-            }
-
-            .check-table td[data-label]::before {
-                content: attr(data-label);
-                color: #888;
-                display: inline-block;
-                min-width: 4.6em;
-            }
-
-            .check-table td[data-label="Note"]:empty,
-            .check-table td[data-label="Why"]:empty {
-                display: none;
-            }
-
-            .check-table tr.game {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 0.2em 0.55em;
-                align-items: baseline;
-            }
-
-            .check-table tr.game td {
-                display: inline;
-                width: auto;
-                padding: 0;
-            }
-
-            .check-table tr.game td::before {
-                content: none;
+            .week-label {
+                margin-top: 14px;
             }
         }
 
@@ -497,12 +574,34 @@
 
         <section class="debug" aria-label="Walk check">
             <h2>Walk check</h2>
-            <p class="note">Each year shows the regular-season table, the playoff games, then the places next to the sheet. A shaded row is a place they do not agree on. From 2025 the 6 seed is the highest points total outside the top 5. If that team did not play the 3 seed, the table follows the team that did and says who had the points. From 2023 on, a 12-team week also gives a win to the six highest scores and a loss to the other six, on top of the head-to-head game. The last week on the NFL calendar is left out. Through 2020 that is week 17, so week 16 is the last week of the league. From 2021 it is week 18, so week 17 is the last week.</p>
+            <p class="note">Each year shows the regular season, the playoff games, then the places next to the sheet. A shaded place is one they do not agree on.</p>
+            <details class="rules">
+                <summary>Rules the walk uses</summary>
+                <ul>
+                    <li>The last NFL week does not count. Through 2020 the league ends in week 16. From 2021 it ends in week 17.</li>
+                    <li>From 2023, each week is two results: the head-to-head game, plus a win for a top-six score or a loss otherwise.</li>
+                    <li>From 2023, the winners' bracket reseeds. The 1 seed plays the lowest seed still alive, and the 2 seed plays the other.</li>
+                    <li>From 2025, the 6 seed is the most points outside the top 5. If that team did not play the 3 seed, the walk follows the team that did.</li>
+                </ul>
+            </details>
             {% for check in checks or [] %}
             <details{% if check.differs %} open{% endif %}>
                 <summary>{{ check.summary }}</summary>
                 <p class="note walk-line">{{ check.walk_line }}</p>
                 {% if check.seeds %}
+                <p class="week-label">Regular season</p>
+                <ul class="phone-list">
+                    {% for seed in check.seeds %}
+                    <li>
+                        <div class="phone-head">
+                            <span class="phone-seed{% if seed.seed == '—' %} out{% endif %}">{{ seed.seed }}</span>
+                            <span class="phone-name">{{ seed.who }}</span>
+                        </div>
+                        <div class="phone-sub">{{ seed.record }} · {{ seed.points }} pts · #{{ seed.rank }} by record</div>
+                        {% if seed.note %}<div class="phone-note">{{ seed.note }}</div>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
                 <div class="table-wrap">
                     <table class="check-table">
                         <thead>
@@ -532,6 +631,16 @@
                 {% endif %}
                 {% for week in check.weeks %}
                 <p class="week-label">{{ week.label }}</p>
+                <ul class="phone-list">
+                    {% for game in week.games %}
+                    <li class="phone-game">
+                        <span class="{% if game.winner == 'home' %}won{% elif game.winner == 'away' %}lost{% endif %}">{{ game.home }}</span>
+                        <span class="score {% if game.winner == 'home' %}won{% elif game.winner == 'away' %}lost{% endif %}">{{ game.home_score }}</span>
+                        <span class="{% if game.winner == 'away' %}won{% elif game.winner == 'home' %}lost{% endif %}">{{ game.away }}</span>
+                        <span class="score {% if game.winner == 'away' %}won{% elif game.winner == 'home' %}lost{% endif %}">{{ game.away_score }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
                 <div class="table-wrap">
                     <table class="check-table">
                         <thead>
@@ -556,6 +665,25 @@
                 </div>
                 {% endfor %}
                 {% if check.rows %}
+                <p class="week-label">Places: walk vs sheet</p>
+                <ul class="phone-list">
+                    {% for row in check.rows %}
+                    <li class="phone-place{% if row.differs %} diff{% endif %}">
+                        <div class="phone-head">
+                            <span class="place">{{ row.label }}</span>
+                            <span class="pair">
+                                {% if not row.differs %}
+                                {{ row.walk }} <span class="match">✓ sheet</span>
+                                {% else %}
+                                <span class="k">Walk</span>{{ row.walk }}<br>
+                                <span class="k">Sheet</span>{{ row.sheet }}
+                                {% endif %}
+                            </span>
+                        </div>
+                        {% if row.differs and row.why %}<div class="why">{{ row.why }}</div>{% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
                 <div class="table-wrap">
                     <table class="check-table">
                         <thead>

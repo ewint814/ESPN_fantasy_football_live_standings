@@ -238,7 +238,7 @@ def test_history() -> bool:
             )
         assert "2013 — could not follow the bracket" in blank
         assert "Some Club — Noah Last — not linked" in blank
-        assert ">Sheet</span> Henry" in blank
+        assert 'data-label="Sheet">Henry' in blank
         assert page.count('<details class="season"') == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page

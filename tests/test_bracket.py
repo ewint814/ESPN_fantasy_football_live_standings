@@ -281,6 +281,126 @@ def test_matching_places_are_not_differences() -> None:
     assert all(row.differs is False for row in check.rows)
 
 
+def test_played_sixth_beats_a_points_leader_who_sat() -> None:
+    """2025: the points leader is 6th only when that team played the 3 seed."""
+    teams = twelve_team_season()
+    teams[6].scores[0] = 200
+    title = read_season(teams, 2025, "Eli")
+    assert title is not None
+    assert title.agrees
+    assert "Bracket champion" in title.walk
+    sixth = next(row for row in title.seeds if row.seed == "6")
+    assert "Noach" in sixth.who
+    assert "played the 3 seed" in sixth.note
+    points_leader = next(row for row in title.seeds if "most points" in row.note)
+    assert "Wechs" in points_leader.who
+    assert points_leader.points == "200.0"
+    assert title.weeks
+
+
+def ten_team_season() -> list[Team]:
+    """10 teams, one regular week, three playoff rounds, then an extra week."""
+    owners = ["Eli", "Joe", "Henry", "Yoni", "Bergel", "Noach", "Wechs", "Harry", "Josh", "Elisha"]
+    teams = [Team(index + 1, f"Club {index + 1}", owners[index]) for index in range(10)]
+    add_week(
+        teams,
+        [
+            (1, 10, 100, 5),
+            (2, 9, 90, 10),
+            (3, 8, 80, 20),
+            (4, 7, 70, 30),
+            (5, 6, 60, 40),
+        ],
+    )
+    add_week(
+        teams,
+        [
+            (1, 4, 90, 20),
+            (2, 3, 80, 30),
+            (5, 10, 40, 10),
+            (6, 9, 40, 10),
+            (7, 8, 40, 10),
+        ],
+    )
+    add_week(
+        teams,
+        [
+            (1, 2, 100, 40),
+            (4, 3, 30, 10),
+            (6, 7, 30, 10),
+            (8, 9, 30, 10),
+        ],
+    )
+    add_week(teams, [(5, 6, 40, 10), (10, 9, 20, 5)])
+    add_week(teams, [(1, 5, 10, 5)])
+    return teams
+
+
+def test_ten_team_years_walk_without_combining_the_last_weeks() -> None:
+    title = read_season(ten_team_season(), 2015, "Eli", 1)
+    assert title is not None
+    assert title.agrees
+    assert title.places
+    assert [week.label for week in title.weeks] == [
+        "Playoff week 1",
+        "Playoff week 2",
+        "Playoff week 3",
+        "Playoff week 4",
+    ]
+    assert "No bracket walk" not in title.walk
+
+
+def _blank_weeks(teams: list[Team], count: int) -> None:
+    """Append weeks with no game, so a later week can sit on the NFL calendar."""
+    for _ in range(count):
+        for team in teams:
+            team.scores.append(0)
+            team.outcomes.append("U")
+            team.schedule.append(team)
+
+
+def test_week_17_of_a_17_week_nfl_season_is_ignored() -> None:
+    teams = ten_team_season()
+    _blank_weeks(teams, 16 - len(teams[0].scores))
+    add_week(teams, [(1, 2, 900, 1)])
+    title = read_season(teams, 2016, "Eli", 1)
+    assert title is not None
+    assert title.agrees
+    assert title.seeds[0].points == "100.0"
+    shown = [game.home_score for week in title.weeks for game in week.games]
+    shown += [game.away_score for week in title.weeks for game in week.games]
+    assert "900.0" not in shown
+
+
+def test_week_16_still_counts_before_2021() -> None:
+    teams = ten_team_season()
+    _blank_weeks(teams, 15 - len(teams[0].scores))
+    add_week(teams, [(1, 10, 40, 1)])
+    title = read_season(teams, 2016, "Eli", 16)
+    assert title is not None
+    assert title.seeds[0].who.startswith("Eli")
+    assert title.seeds[0].points == "340.0"
+
+
+def test_week_18_of_an_18_week_nfl_season_is_ignored() -> None:
+    teams = twelve_team_season()
+    _blank_weeks(teams, 17 - len(teams[0].scores))
+    add_week(teams, [(12, 11, 500, 1)])
+    title = read_season(teams, 2025, "Eli")
+    assert title is not None
+    assert title.agrees
+    shown = [game.home_score for week in title.weeks for game in week.games]
+    shown += [game.away_score for week in title.weeks for game in week.games]
+    assert "500.0" not in shown
+
+
+def test_eight_team_year_says_the_bracket_is_unwritten() -> None:
+    title = read_season(twelve_team_season()[:8], 2011, "Eli", 1)
+    assert title is not None
+    assert "8 teams" in title.walk
+    assert title.seeds
+
+
 def main() -> None:
     test_owner_token()
     test_points_seed_jumps_the_sixth()
@@ -289,6 +409,12 @@ def main() -> None:
     test_walk_disagreement_is_a_note()
     test_missing_name_still_lists_espn_owners()
     test_missing_game_names_the_seeds()
+    test_played_sixth_beats_a_points_leader_who_sat()
+    test_ten_team_years_walk_without_combining_the_last_weeks()
+    test_week_17_of_a_17_week_nfl_season_is_ignored()
+    test_week_16_still_counts_before_2021()
+    test_week_18_of_an_18_week_nfl_season_is_ignored()
+    test_eight_team_year_says_the_bracket_is_unwritten()
     test_check_marks_a_swap_and_an_unordered_pair()
     test_matching_places_are_not_differences()
     print("bracket ok")

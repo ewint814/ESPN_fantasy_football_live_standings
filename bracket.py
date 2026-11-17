@@ -21,6 +21,8 @@ class Club:
     owner: str
     wins: int
     points_for: float
+    losses: int = 0
+    ties: int = 0
 
 
 @dataclass(frozen=True)
@@ -109,8 +111,11 @@ def combine_weeks(first: list[Game], second: list[Game]) -> list[Game] | None:
 
 
 def rank_clubs(clubs: list[Club]) -> list[Club]:
-    """Regular-season order: more wins, then more points."""
-    return sorted(clubs, key=lambda club: (-club.wins, -club.points_for, club.team_id))
+    """Regular-season order: more wins, half a win for a tie, then more points."""
+    return sorted(
+        clubs,
+        key=lambda club: (-(club.wins + club.ties * 0.5), -club.points_for, club.team_id),
+    )
 
 
 def winners_seeds(clubs: list[Club], year: int, count: int) -> list[Club]:

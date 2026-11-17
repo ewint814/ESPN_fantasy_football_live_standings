@@ -195,6 +195,65 @@ def test_fifth_place_is_the_two_week_total() -> None:
     assert "60.0 to 40.0" in notes[5]
 
 
+def test_two_week_rounds_walk_losers_from_single_weeks() -> None:
+    owners = ["Eli", "Joe", "Henry", "Yoni", "Bergel", "Noach", "Wechs", "Harry", "Josh", "Elisha"]
+    teams = [Team(index + 1, f"Club {index + 1}", owners[index]) for index in range(10)]
+    add_week(
+        teams, [(1, 10, 100, 5), (2, 9, 90, 10), (3, 8, 80, 20), (4, 7, 70, 30), (5, 6, 60, 40)]
+    )
+    add_week(
+        teams, [(1, 4, 200, 150), (2, 3, 150, 200), (5, 6, 300, 1), (7, 8, 300, 1), (9, 10, 300, 1)]
+    )
+    add_week(
+        teams, [(1, 3, 150, 200), (2, 4, 200, 150), (5, 7, 300, 1), (6, 8, 300, 1), (9, 10, 300, 1)]
+    )
+    weekly = {
+        5: {2: 10, 3: 10, 4: 2, 5: 2},
+        6: {2: 10, 3: 20, 4: 5, 5: 5},
+        7: {2: 10, 3: 50, 4: 1, 5: 1},
+        8: {2: 20, 3: 50, 4: 10, 5: 10},
+        9: {2: 20, 3: 20, 4: 20, 5: 20},
+        10: {2: 20, 3: 10, 4: 30, 5: 30},
+    }
+    title = read_season(
+        teams, 2020, "Henry", 1, {key: dict(value) for key, value in weekly.items()}
+    )
+    assert title is not None
+    assert title.agrees
+    order = [owner.split()[0] for _place, _team, owner in sorted(title.places)]
+    assert order == [
+        "Henry",
+        "Eli",
+        "Joe",
+        "Yoni",
+        "Josh",
+        "Harry",
+        "Elisha",
+        "Noach",
+        "Bergel",
+        "Wechs",
+    ]
+    notes = dict(title.place_notes)
+    assert "7th-place game" in notes[7]
+    labels = [week.label for week in title.weeks]
+    assert "Losers' bracket, NFL week 2" in labels
+    assert "Losers' bracket, NFL weeks 4–5" in labels
+
+
+def test_two_week_rounds_without_single_weeks_say_so() -> None:
+    owners = ["Eli", "Joe", "Henry", "Yoni", "Bergel", "Noach", "Wechs", "Harry", "Josh", "Elisha"]
+    teams = [Team(index + 1, f"Club {index + 1}", owners[index]) for index in range(10)]
+    add_week(
+        teams, [(1, 10, 100, 5), (2, 9, 90, 10), (3, 8, 80, 20), (4, 7, 70, 30), (5, 6, 60, 40)]
+    )
+    add_week(teams, [(1, 4, 200, 150), (2, 3, 150, 200)])
+    add_week(teams, [(1, 3, 150, 200), (2, 4, 200, 150)])
+    title = read_season(teams, 2020, "Henry", 1, {})
+    assert title is not None
+    assert not title.places
+    assert "did not send the single weeks" in title.walk
+
+
 def test_missing_name_still_lists_espn_owners() -> None:
     title = read_season(twelve_team_season(), 2014, "Goggles")
     assert title is not None
@@ -516,6 +575,8 @@ def main() -> None:
     test_losers_order()
     test_ninth_place_game_orders_ninth_and_tenth()
     test_fifth_place_is_the_two_week_total()
+    test_two_week_rounds_walk_losers_from_single_weeks()
+    test_two_week_rounds_without_single_weeks_say_so()
     test_walk_matches_the_sheet_champion()
     test_walk_disagreement_is_a_note()
     test_missing_name_still_lists_espn_owners()

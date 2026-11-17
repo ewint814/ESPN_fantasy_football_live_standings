@@ -227,12 +227,18 @@ def winners_four(
     )
 
 
-def losers_six(seeds: list[Club], rounds: list[list[Game]]) -> list[Placed] | None:
+def losers_six(
+    seeds: list[Club],
+    rounds: list[list[Game]],
+    middle_place: str = "9th",
+    played: list[list[Game]] | None = None,
+) -> list[Placed] | None:
     """Six-team losers' bracket, best place first.
 
     Opening games are 1 vs 6, 2 vs 5, 3 vs 4. The best winner waits for the
     losers' final. The worst loser waits for the Sacko. The other winners play,
     and the other losers play. Then winner plays winner, and loser plays loser.
+    When `played` is given, it gets the games used in each round.
     """
     if len(seeds) != 6 or len(rounds) < 3:
         return None
@@ -280,12 +286,26 @@ def losers_six(seeds: list[Club], rounds: list[list[Game]]) -> list[Placed] | No
     sacko_winner = _club(seeds, winner_id(sacko) or 0)
     sacko_loser = _club(seeds, loser_id(sacko) or 0)
     ninth = game_between(rounds[2], middle_dropped.team_id, consolation_winner.team_id)
+    if played is not None:
+        played.extend(
+            [
+                [game for game in opening if game is not None],
+                [middle_winners, middle_losers],
+                [game for game in (final, ninth, sacko) if game is not None],
+            ]
+        )
     if ninth is not None and winner_id(ninth) is not None:
         ninth_winner = _club(seeds, winner_id(ninth) or 0)
         ninth_loser = _club(seeds, loser_id(ninth) or 0)
         middle = [
-            Placed(ninth_winner, f"Won the 9th-place game against {person_label(ninth_loser)}."),
-            Placed(ninth_loser, f"Lost the 9th-place game to {person_label(ninth_winner)}."),
+            Placed(
+                ninth_winner,
+                f"Won the {middle_place}-place game against {person_label(ninth_loser)}.",
+            ),
+            Placed(
+                ninth_loser,
+                f"Lost the {middle_place}-place game to {person_label(ninth_winner)}.",
+            ),
         ]
     else:
         middle = [

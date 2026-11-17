@@ -350,6 +350,50 @@ def test_ten_team_years_walk_without_combining_the_last_weeks() -> None:
     assert "No bracket walk" not in title.walk
 
 
+def _blank_weeks(teams: list[Team], count: int) -> None:
+    """Append weeks with no game, so a later week can sit on the NFL calendar."""
+    for _ in range(count):
+        for team in teams:
+            team.scores.append(0)
+            team.outcomes.append("U")
+            team.schedule.append(team)
+
+
+def test_week_17_of_a_17_week_nfl_season_is_ignored() -> None:
+    teams = ten_team_season()
+    _blank_weeks(teams, 16 - len(teams[0].scores))
+    add_week(teams, [(1, 2, 900, 1)])
+    title = read_season(teams, 2016, "Eli", 1)
+    assert title is not None
+    assert title.agrees
+    assert title.seeds[0].points == "100.0"
+    shown = [game.home_score for week in title.weeks for game in week.games]
+    shown += [game.away_score for week in title.weeks for game in week.games]
+    assert "900.0" not in shown
+
+
+def test_week_16_still_counts_before_2021() -> None:
+    teams = ten_team_season()
+    _blank_weeks(teams, 15 - len(teams[0].scores))
+    add_week(teams, [(1, 10, 40, 1)])
+    title = read_season(teams, 2016, "Eli", 16)
+    assert title is not None
+    assert title.seeds[0].who.startswith("Eli")
+    assert title.seeds[0].points == "340.0"
+
+
+def test_week_18_of_an_18_week_nfl_season_is_ignored() -> None:
+    teams = twelve_team_season()
+    _blank_weeks(teams, 17 - len(teams[0].scores))
+    add_week(teams, [(12, 11, 500, 1)])
+    title = read_season(teams, 2025, "Eli")
+    assert title is not None
+    assert title.agrees
+    shown = [game.home_score for week in title.weeks for game in week.games]
+    shown += [game.away_score for week in title.weeks for game in week.games]
+    assert "500.0" not in shown
+
+
 def test_eight_team_year_says_the_bracket_is_unwritten() -> None:
     title = read_season(twelve_team_season()[:8], 2011, "Eli", 1)
     assert title is not None
@@ -367,6 +411,9 @@ def main() -> None:
     test_missing_game_names_the_seeds()
     test_played_sixth_beats_a_points_leader_who_sat()
     test_ten_team_years_walk_without_combining_the_last_weeks()
+    test_week_17_of_a_17_week_nfl_season_is_ignored()
+    test_week_16_still_counts_before_2021()
+    test_week_18_of_an_18_week_nfl_season_is_ignored()
     test_eight_team_year_says_the_bracket_is_unwritten()
     test_check_marks_a_swap_and_an_unordered_pair()
     test_matching_places_are_not_differences()

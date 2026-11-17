@@ -419,8 +419,18 @@ def _team_for_owner(teams: list[Any], sheet_name: str) -> tuple[str, str] | None
     return None
 
 
+def _last_counting_week(year: int) -> int:
+    """Schedule index where the league stops. That NFL week counts for nothing.
+
+    Index 0 is NFL week 1. Through 2020 the NFL had 17 weeks, so week 17 is
+    ignored and week 16 is the last week of the league. From 2021 the NFL has
+    18 weeks, so week 18 is ignored and week 17 is the last week.
+    """
+    return 17 if year >= 2021 else 16
+
+
 def _walk(teams: list[Any], year: int, regular_season_weeks: int | None = None) -> _Walked | None:
-    indexes, weeks = _played_weeks(teams)
+    indexes, weeks = _played_weeks(teams, year)
     playoff, start = _playoff_window(indexes, weeks, year, len(teams), regular_season_weeks)
     if start is None or not playoff:
         return None
@@ -447,11 +457,11 @@ def _playoff_detail(
             (),
             (),
         )
-    indexes, weeks = _played_weeks(teams)
+    indexes, weeks = _played_weeks(teams, year)
     playoff, start = _playoff_window(indexes, weeks, year, len(teams), regular_season_weeks)
     if start is None:
         return ("ESPN did not return enough scored weeks to walk the bracket.", (), ())
-    clubs = _clubs(teams, start)
+    clubs = _clubs(teams, start, year)
     if len(teams) <= 8:
         return (
             "This season has 8 teams. The walk does not know that bracket yet.",
@@ -792,12 +802,13 @@ def _club(seeds: list[Club], team_id: int) -> Club:
     raise KeyError(team_id)
 
 
-def _played_weeks(teams: list[Any]) -> tuple[list[int], list[list[Game]]]:
-    """Schedule indexes that finished, and the games in each."""
+def _played_weeks(teams: list[Any], year: int) -> tuple[list[int], list[list[Game]]]:
+    """Finished weeks inside the league. The last NFL week is left out."""
     count = min(len(team.outcomes) for team in teams)
+    end = _last_counting_week(year)
     indexes: list[int] = []
     weeks: list[list[Game]] = []
-    for index in range(count):
+    for index in range(min(count, end)):
         games = _games_at(teams, index)
         if games:
             indexes.append(index)
@@ -829,15 +840,16 @@ def _games_at(teams: list[Any], index: int) -> list[Game]:
     return games
 
 
-def _clubs(teams: list[Any], through: int) -> list[Club]:
-    """Wins and points before the playoff slots."""
+def _clubs(teams: list[Any], through: int, year: int) -> list[Club]:
+    """Wins and points before the playoffs, and never from the last NFL week."""
+    end = min(through, _last_counting_week(year))
     clubs: list[Club] = []
     for team in teams:
         wins = 0
         losses = 0
         ties = 0
         points = 0.0
-        for index in range(through):
+        for index in range(end):
             opponent = team.schedule[index]
             if getattr(opponent, "team_id", None) in (None, team.team_id):
                 continue
@@ -872,10 +884,10 @@ def _champion_twelve(
 ) -> _Walked | None:
     if start is None:
         playoff_all = weeks[-TWELVE_TEAM_PLAYOFF_WEEKS:]
-        clubs = _clubs(teams, indexes[-TWELVE_TEAM_PLAYOFF_WEEKS])
+        clubs = _clubs(teams, indexes[-TWELVE_TEAM_PLAYOFF_WEEKS], year)
     else:
         playoff_all = _weeks_from(indexes, weeks, start)
-        clubs = _clubs(teams, start)
+        clubs = _clubs(teams, start, year)
     if len(playoff_all) < TWELVE_TEAM_PLAYOFF_WEEKS:
         return None
     playoff = playoff_all[:TWELVE_TEAM_PLAYOFF_WEEKS]
@@ -947,10 +959,10 @@ def _champion_ten(
 ) -> _Walked | None:
     if start is None:
         playoff = weeks[-TEN_TEAM_SPAN:]
-        clubs = _clubs(teams, indexes[-TEN_TEAM_SPAN])
+        clubs = _clubs(teams, indexes[-TEN_TEAM_SPAN], year)
     else:
         playoff = _weeks_from(indexes, weeks, start)
-        clubs = _clubs(teams, start)
+        clubs = _clubs(teams, start, year)
     rounds = _ten_rounds(playoff)
     if rounds is None:
         return None

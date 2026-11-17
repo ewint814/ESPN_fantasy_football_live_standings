@@ -279,17 +279,29 @@ def losers_six(seeds: list[Club], rounds: list[list[Game]]) -> list[Placed] | No
     consolation_loser = _club(seeds, loser_id(middle_losers) or 0)
     sacko_winner = _club(seeds, winner_id(sacko) or 0)
     sacko_loser = _club(seeds, loser_id(sacko) or 0)
+    ninth = game_between(rounds[2], middle_dropped.team_id, consolation_winner.team_id)
+    if ninth is not None and winner_id(ninth) is not None:
+        ninth_winner = _club(seeds, winner_id(ninth) or 0)
+        ninth_loser = _club(seeds, loser_id(ninth) or 0)
+        middle = [
+            Placed(ninth_winner, f"Won the 9th-place game against {person_label(ninth_loser)}."),
+            Placed(ninth_loser, f"Lost the 9th-place game to {person_label(ninth_winner)}."),
+        ]
+    else:
+        middle = [
+            Placed(
+                middle_dropped,
+                f"Lost the middle-round game on the winners' side of the losers' bracket to {person_label(middle_winner)}.",
+            ),
+            Placed(
+                consolation_winner,
+                f"Won the middle-round game on the losers' side of the losers' bracket against {person_label(consolation_loser)}.",
+            ),
+        ]
     return [
         Placed(final_winner, f"Won the losers' final against {person_label(final_loser)}."),
         Placed(final_loser, f"Lost the losers' final to {person_label(final_winner)}."),
-        Placed(
-            middle_dropped,
-            f"Lost the middle-round game on the winners' side of the losers' bracket to {person_label(middle_winner)}.",
-        ),
-        Placed(
-            consolation_winner,
-            f"Won the middle-round game on the losers' side of the losers' bracket against {person_label(consolation_loser)}.",
-        ),
+        *middle,
         Placed(sacko_winner, f"Won the Sacko game against {person_label(sacko_loser)}."),
         Placed(sacko_loser, f"Lost the Sacko game to {person_label(sacko_winner)}."),
     ]

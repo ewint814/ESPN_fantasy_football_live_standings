@@ -929,6 +929,26 @@ def _clubs(teams: list[Any], through: int, year: int) -> list[Club]:
     return clubs
 
 
+def _two_week_game(first: list[Game], second: list[Game], pair: tuple[Club, Club]) -> Game | None:
+    """Both weeks between the pair, added together. None unless they met both weeks."""
+    one, two = pair
+    games = [game_between(week, one.team_id, two.team_id) for week in (first, second)]
+    if any(game is None for game in games):
+        return None
+    home = 0.0
+    away = 0.0
+    for game in games:
+        if game is None:
+            return None
+        if game.home_id == one.team_id:
+            home += game.home_score
+            away += game.away_score
+        else:
+            home += game.away_score
+            away += game.home_score
+    return Game(one.team_id, two.team_id, home, away)
+
+
 def _champion_twelve(
     teams: list[Any],
     year: int,
@@ -989,15 +1009,42 @@ def _champion_twelve(
         and loser_id(first_low)
         and loser_id(first_high)
     ):
-        pairs.append(
-            (
-                5,
-                6,
-                (_club(seeds, loser_id(first_low) or 0), _club(seeds, loser_id(first_high) or 0)),
-                "These two lost in the first round and did not play each other, "
-                "so the walk does not rank one above the other.",
-            )
+        fifth_pair = (
+            _club(seeds, loser_id(first_low) or 0),
+            _club(seeds, loser_id(first_high) or 0),
         )
+        fifth_game = _two_week_game(playoff[1], playoff[2], fifth_pair)
+        if fifth_game is not None and winner_id(fifth_game) is not None:
+            fifth_winner = _club(seeds, winner_id(fifth_game) or 0)
+            fifth_loser = _club(seeds, loser_id(fifth_game) or 0)
+            score = f"{_points(max(fifth_game.home_score, fifth_game.away_score))}"
+            other = f"{_points(min(fifth_game.home_score, fifth_game.away_score))}"
+            places.append(
+                (
+                    5,
+                    fifth_winner,
+                    f"Won the two-week 5th-place game against {person_label(fifth_loser)}, "
+                    f"{score} to {other}.",
+                )
+            )
+            places.append(
+                (
+                    6,
+                    fifth_loser,
+                    f"Lost the two-week 5th-place game to {person_label(fifth_winner)}, "
+                    f"{other} to {score}.",
+                )
+            )
+        else:
+            pairs.append(
+                (
+                    5,
+                    6,
+                    fifth_pair,
+                    "These two lost in the first round and did not play each other "
+                    "in the next two weeks, so the walk does not rank one above the other.",
+                )
+            )
     places.extend(
         (6 + index, placed.club, placed.reason) for index, placed in enumerate(losers, start=1)
     )

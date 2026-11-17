@@ -154,6 +154,47 @@ def test_losers_order() -> None:
     assert "Sacko" in places[-1].reason
 
 
+def test_ninth_place_game_orders_ninth_and_tenth() -> None:
+    owners = ["Wechs", "Harry", "Josh", "Elisha", "Noam", "Yossi"]
+    seeds = [Club(index + 7, f"Club {index + 7}", owners[index], 0, 0) for index in range(6)]
+    opening = [Game(7, 12, 40, 10), Game(8, 11, 40, 10), Game(9, 10, 40, 10)]
+    middle = [Game(8, 9, 30, 10), Game(10, 11, 30, 10), Game(7, 12, 1, 99)]
+    last = [Game(7, 8, 40, 10), Game(11, 12, 20, 5), Game(9, 10, 10, 50)]
+    places = losers_six(seeds, [opening, middle, last])
+    assert places is not None
+    assert [place.club.team_id for place in places] == [7, 8, 10, 9, 11, 12]
+    assert "9th-place game" in places[2].reason
+
+
+def set_game(teams: list[Team], slot: int, game: tuple[int, int, float, float]) -> None:
+    """Put one more game into an existing week."""
+    home_id, away_id, home_score, away_score = game
+    by_id = {team.team_id: team for team in teams}
+    home = by_id[home_id]
+    away = by_id[away_id]
+    home.scores[slot] = home_score
+    away.scores[slot] = away_score
+    home.schedule[slot] = away
+    away.schedule[slot] = home
+    home.outcomes[slot] = "W" if home_score > away_score else "L"
+    away.outcomes[slot] = "W" if away_score > home_score else "L"
+
+
+def test_fifth_place_is_the_two_week_total() -> None:
+    teams = twelve_team_season()
+    set_game(teams, 2, (5, 6, 30, 20))
+    set_game(teams, 3, (5, 6, 10, 40))
+    title = read_season(teams, 2024, "Eli")
+    assert title is not None
+    assert title.pairs == () or all(start != 5 for start, *_ in title.pairs)
+    placed = {place: owner for place, _team, owner in title.places}
+    assert placed[5].startswith("Noach")
+    assert placed[6].startswith("Bergel")
+    notes = dict(title.place_notes)
+    assert "two-week 5th-place game" in notes[5]
+    assert "60.0 to 40.0" in notes[5]
+
+
 def test_missing_name_still_lists_espn_owners() -> None:
     title = read_season(twelve_team_season(), 2014, "Goggles")
     assert title is not None
@@ -473,6 +514,8 @@ def main() -> None:
     test_owner_token()
     test_points_seed_jumps_the_sixth()
     test_losers_order()
+    test_ninth_place_game_orders_ninth_and_tenth()
+    test_fifth_place_is_the_two_week_total()
     test_walk_matches_the_sheet_champion()
     test_walk_disagreement_is_a_note()
     test_missing_name_still_lists_espn_owners()

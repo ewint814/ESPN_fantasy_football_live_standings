@@ -45,6 +45,9 @@ TEN_TEAM_SPAN = 4
 # (start place, end place, ((team, owner), (team, owner)), reason)
 PairRow = tuple[int, int, tuple[tuple[str, str], tuple[str, str]], str]
 
+# team id -> NFL week -> points that week
+WeeklyPoints = dict[int, dict[int, float]]
+
 
 @dataclass(frozen=True)
 class Title:
@@ -147,7 +150,8 @@ def load_titles(league_id: int, espn_s2: str, swid: str, years: list[int]) -> di
         try:
             league = League(league_id=league_id, year=year, espn_s2=espn_s2, swid=swid)
             regular = getattr(getattr(league, "settings", None), "reg_season_count", None)
-            title = read_season(league.teams, year, champion(year), regular)
+            weekly = _weekly_points(league) if len(league.teams) < 12 else {}
+            title = read_season(league.teams, year, champion(year), regular, weekly)
         except Exception as exc:
             logger.warning("ESPN history %s failed: %s", year, exc)
             continue
@@ -161,13 +165,14 @@ def read_season(
     year: int,
     sheet_champion: str | None,
     regular_season_weeks: int | None = None,
+    weekly: WeeklyPoints | None = None,
 ) -> Title | None:
     """Team name for the sheet champion, using the bracket when this year has one."""
     if not sheet_champion or not teams:
         return None
     roster = _roster(teams)
-    walked = _walk(teams, year, regular_season_weeks)
-    detail, seeds, weeks = _playoff_detail(teams, year, walked, regular_season_weeks)
+    walked = _walk(teams, year, regular_season_weeks, weekly)
+    detail, seeds, weeks = _playoff_detail(teams, year, walked, regular_season_weeks, weekly)
     places = _place_rows(walked)
     notes = () if walked is None else tuple((place, note) for place, _club, note in walked.places)
     pairs = _pair_rows(walked)
@@ -431,13 +436,104 @@ def _last_counting_week(year: int) -> int:
     return 17 if year >= 2021 else 16
 
 
-def _walk(teams: list[Any], year: int, regular_season_weeks: int | None = None) -> _Walked | None:
+def _weekly_points(league: Any) -> WeeklyPoints:
+    """Each team's points by NFL week, including the weeks inside two-week games."""
+    try:
+        data = league.espn_request.league_get(params={"view": ["mMatchup", "mMatchupScore"]})
+    except Exception as exc:
+        logger.warning("ESPN weekly points %s failed: %s", getattr(league, "year", "?"), exc)
+        return {}
+    points: WeeklyPoints = {}
+    for item in data.get("schedule", []) or []:
+        for side in ("home", "away"):
+            entry = item.get(side) or {}
+            team_id = entry.get("teamId")
+            if team_id is None:
+                continue
+            for period, value in (entry.get("pointsByScoringPeriod") or {}).items():
+                points.setdefault(int(team_id), {})[int(period)] = float(value)
+    return points
+
+
+def _two_week_rounds(teams: list[Any], playoff: list[list[Game]]) -> bool:
+    """10-team years where ESPN stores each playoff round as two weeks added together."""
+    return 10 <= len(teams) < 12 and len(playoff) == 2
+
+
+def _losers_weeks(field: list[Club], weekly: WeeklyPoints, start: int) -> list[list[Game]] | None:
+    """Losers' bracket rounds from single weeks: one week, one week, then two weeks.
+
+    ESPN pairs these teams its own way inside the two-week games, so every
+    pairing is built from the weekly points and the bracket picks the ones it needs.
+    """
+    weeks = [start + 1, start + 2, start + 3, start + 4]
+    scores: list[dict[int, float]] = [{}, {}, {}]
+    for club in field:
+        by_week = weekly.get(club.team_id, {})
+        if any(week not in by_week for week in weeks):
+            return None
+        scores[0][club.team_id] = by_week[weeks[0]]
+        scores[1][club.team_id] = by_week[weeks[1]]
+        scores[2][club.team_id] = by_week[weeks[2]] + by_week[weeks[3]]
+    rounds: list[list[Game]] = []
+    for round_scores in scores:
+        games = [
+            Game(
+                left.team_id, right.team_id, round_scores[left.team_id], round_scores[right.team_id]
+            )
+            for index, left in enumerate(field)
+            for right in field[index + 1 :]
+        ]
+        rounds.append(games)
+    return rounds
+
+
+def _champion_ten_split(
+    teams: list[Any],
+    year: int,
+    playoff: list[list[Game]],
+    start: int,
+    weekly: WeeklyPoints,
+    played: list[list[Game]] | None = None,
+) -> _Walked | None:
+    clubs = _clubs(teams, start, year)
+    result = winners_four(winners_seeds(clubs, year, 4), playoff)
+    if result is None:
+        return None
+    field = losers_seeds(clubs, year, 4)
+    rounds = _losers_weeks(field, weekly, start)
+    if rounds is None:
+        return None
+    losers = losers_six(field, rounds, middle_place="7th", played=played)
+    if losers is None:
+        return None
+    labels = (
+        "Won the two-week final.",
+        "Lost the two-week final.",
+        "Won the two-week third-place game.",
+        "Lost the two-week third-place game.",
+    )
+    places = [(index, club, labels[index - 1]) for index, club in enumerate(result, start=1)]
+    places.extend(
+        (4 + index, placed.club, placed.reason) for index, placed in enumerate(losers, start=1)
+    )
+    return _Walked(result[0], tuple(places), ())
+
+
+def _walk(
+    teams: list[Any],
+    year: int,
+    regular_season_weeks: int | None = None,
+    weekly: WeeklyPoints | None = None,
+) -> _Walked | None:
     indexes, weeks = _played_weeks(teams, year)
     playoff, start = _playoff_window(indexes, weeks, year, len(teams), regular_season_weeks)
     if start is None or not playoff:
         return None
     if len(teams) >= 12 and len(playoff) >= TWELVE_TEAM_PLAYOFF_WEEKS:
         return _champion_twelve(teams, year, indexes, weeks, start)
+    if _two_week_rounds(teams, playoff):
+        return _champion_ten_split(teams, year, playoff, start, weekly or {})
     if len(teams) >= 10 and _ten_rounds(playoff) is not None:
         return _champion_ten(teams, year, indexes, weeks, start)
     return None
@@ -448,6 +544,7 @@ def _playoff_detail(
     year: int,
     walked: _Walked | None,
     regular_season_weeks: int | None = None,
+    weekly: WeeklyPoints | None = None,
 ) -> tuple[str, tuple[SeedLine, ...], tuple[WeekLine, ...]]:
     """Short reason, the standings table, and each playoff week."""
     if regular_season_weeks is None and year < 2019:
@@ -470,12 +567,60 @@ def _playoff_detail(
             _seed_lines(clubs, [], year),
             _week_lines(playoff, clubs),
         )
+    if _two_week_rounds(teams, playoff):
+        return _split_detail(teams, year, playoff, start, clubs, walked, weekly or {})
     rounds = playoff[:3] if len(teams) >= 12 else (_ten_rounds(playoff) or [])
     seeds = _twelve_seeds(clubs, year, rounds[0] if rounds else []) if len(teams) >= 12 else []
     if len(teams) < 12:
         seeds = winners_seeds(clubs, year, 4) if len(clubs) >= 4 else []
     text = _detail_text(clubs, year, rounds or playoff, walked, len(teams) >= 12)
     return text, _seed_lines(clubs, seeds, year), _week_lines(playoff, clubs)
+
+
+def _split_detail(
+    teams: list[Any],
+    year: int,
+    playoff: list[list[Game]],
+    start: int,
+    clubs: list[Club],
+    walked: _Walked | None,
+    weekly: WeeklyPoints,
+) -> tuple[str, tuple[SeedLine, ...], tuple[WeekLine, ...]]:
+    """10-team years with two-week rounds. The losers' side comes from single weeks."""
+    seeds = winners_seeds(clubs, year, 4)
+    first = start + 1
+    labels = [
+        f"Winners' round 1, NFL weeks {first}–{first + 1}",
+        f"Winners' round 2, NFL weeks {first + 2}–{first + 3}",
+    ]
+    lines = list(_week_lines(playoff, clubs, labels))
+    played: list[list[Game]] = []
+    _champion_ten_split(teams, year, playoff, start, weekly, played)
+    if played:
+        lines.extend(
+            _week_lines(
+                played,
+                clubs,
+                [
+                    f"Losers' bracket, NFL week {first}",
+                    f"Losers' bracket, NFL week {first + 1}",
+                    f"Losers' bracket, NFL weeks {first + 2}–{first + 3}",
+                ],
+            )
+        )
+    gap = _winners_four_gap(seeds, playoff)
+    if walked is not None:
+        text = f"Bracket champion: {person_label(walked.champion)}."
+    elif gap is not None:
+        text = gap
+    elif _losers_weeks(losers_seeds(clubs, year, 4), weekly, start) is None:
+        text = (
+            "ESPN stores each playoff round this year as two weeks added together "
+            "and did not send the single weeks, so the losers' bracket can't be followed."
+        )
+    else:
+        text = "Two teams tied in the losers' bracket, so the walk stops there."
+    return text, _seed_lines(clubs, seeds, year), tuple(lines)
 
 
 def _weeks_from(indexes: list[int], weeks: list[list[Game]], start: int) -> list[list[Game]]:
@@ -586,10 +731,13 @@ def _winner_side(game: Game) -> str:
     return "home" if won == game.home_id else "away"
 
 
-def _week_lines(playoff: list[list[Game]], clubs: list[Club]) -> tuple[WeekLine, ...]:
+def _week_lines(
+    playoff: list[list[Game]], clubs: list[Club], labels: list[str] | None = None
+) -> tuple[WeekLine, ...]:
     by_id = {club.team_id: club for club in clubs}
     rows: list[WeekLine] = []
     for index, games in enumerate(playoff, start=1):
+        label = labels[index - 1] if labels else f"Playoff week {index}"
         game_rows: list[GameLine] = []
         for game in games:
             home = by_id.get(game.home_id)
@@ -603,7 +751,7 @@ def _week_lines(playoff: list[list[Game]], clubs: list[Club]) -> tuple[WeekLine,
                     _winner_side(game),
                 )
             )
-        rows.append(WeekLine(f"Playoff week {index}", tuple(game_rows)))
+        rows.append(WeekLine(label, tuple(game_rows)))
     return tuple(rows)
 
 
@@ -929,6 +1077,26 @@ def _clubs(teams: list[Any], through: int, year: int) -> list[Club]:
     return clubs
 
 
+def _two_week_game(first: list[Game], second: list[Game], pair: tuple[Club, Club]) -> Game | None:
+    """Both weeks between the pair, added together. None unless they met both weeks."""
+    one, two = pair
+    games = [game_between(week, one.team_id, two.team_id) for week in (first, second)]
+    if any(game is None for game in games):
+        return None
+    home = 0.0
+    away = 0.0
+    for game in games:
+        if game is None:
+            return None
+        if game.home_id == one.team_id:
+            home += game.home_score
+            away += game.away_score
+        else:
+            home += game.away_score
+            away += game.home_score
+    return Game(one.team_id, two.team_id, home, away)
+
+
 def _champion_twelve(
     teams: list[Any],
     year: int,
@@ -989,15 +1157,42 @@ def _champion_twelve(
         and loser_id(first_low)
         and loser_id(first_high)
     ):
-        pairs.append(
-            (
-                5,
-                6,
-                (_club(seeds, loser_id(first_low) or 0), _club(seeds, loser_id(first_high) or 0)),
-                "These two lost in the first round and did not play each other, "
-                "so the walk does not rank one above the other.",
-            )
+        fifth_pair = (
+            _club(seeds, loser_id(first_low) or 0),
+            _club(seeds, loser_id(first_high) or 0),
         )
+        fifth_game = _two_week_game(playoff[1], playoff[2], fifth_pair)
+        if fifth_game is not None and winner_id(fifth_game) is not None:
+            fifth_winner = _club(seeds, winner_id(fifth_game) or 0)
+            fifth_loser = _club(seeds, loser_id(fifth_game) or 0)
+            score = f"{_points(max(fifth_game.home_score, fifth_game.away_score))}"
+            other = f"{_points(min(fifth_game.home_score, fifth_game.away_score))}"
+            places.append(
+                (
+                    5,
+                    fifth_winner,
+                    f"Won the two-week 5th-place game against {person_label(fifth_loser)}, "
+                    f"{score} to {other}.",
+                )
+            )
+            places.append(
+                (
+                    6,
+                    fifth_loser,
+                    f"Lost the two-week 5th-place game to {person_label(fifth_winner)}, "
+                    f"{other} to {score}.",
+                )
+            )
+        else:
+            pairs.append(
+                (
+                    5,
+                    6,
+                    fifth_pair,
+                    "These two lost in the first round and did not play each other "
+                    "in the next two weeks, so the walk does not rank one above the other.",
+                )
+            )
     places.extend(
         (6 + index, placed.club, placed.reason) for index, placed in enumerate(losers, start=1)
     )

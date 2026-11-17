@@ -142,12 +142,28 @@ def _club(seeds: list[Club], team_id: int) -> Club:
     raise KeyError(team_id)
 
 
+def semifinal_opponents(
+    seeds: list[Club], low_winner: int, high_winner: int, reseed: bool
+) -> tuple[int, int]:
+    """Who seed 1 and seed 2 play in the second round.
+
+    Without reseeding, 1 plays the 4/5 winner and 2 plays the 3/6 winner.
+    With reseeding, 1 plays the lowest seed still alive and 2 plays the other.
+    """
+    if not reseed:
+        return high_winner, low_winner
+    order = [club.team_id for club in seeds]
+    lowest = max((low_winner, high_winner), key=order.index)
+    other = high_winner if lowest == low_winner else low_winner
+    return lowest, other
+
+
 def winners_six(
-    seeds: list[Club], rounds: list[list[Game]]
+    seeds: list[Club], rounds: list[list[Game]], reseed: bool = False
 ) -> tuple[Club, Club, Club, Club] | None:
     """12-team winners' side. Seeds 1 and 2 bye. 3 plays 6, 4 plays 5.
 
-    Seed 1 then plays the winner of 4 vs 5. Seed 2 plays the winner of 3 vs 6.
+    The second round is the semifinals (see semifinal_opponents).
     The last round is the final. Returns the champion and the runner-up.
     """
     if len(seeds) != 6 or len(rounds) < 3:
@@ -161,8 +177,9 @@ def winners_six(
     high_winner = winner_id(high)
     if low_winner is None or high_winner is None:
         return None
-    semi_one = game_between(rounds[1], first.team_id, high_winner)
-    semi_two = game_between(rounds[1], second.team_id, low_winner)
+    for_first, for_second = semifinal_opponents(seeds, low_winner, high_winner, reseed)
+    semi_one = game_between(rounds[1], first.team_id, for_first)
+    semi_two = game_between(rounds[1], second.team_id, for_second)
     if semi_one is None or semi_two is None:
         return None
     finalist_one = winner_id(semi_one)

@@ -294,6 +294,59 @@ def test_top_six_score_adds_a_win_and_the_bottom_six_a_loss() -> None:
     assert by_name["Wechs"].points == "200.0"
     assert by_name["Yossi"].record == "0-2"
     assert by_name["Noach"].record == "1-1"
+    earlier = read_season(teams, 2022, "Eli")
+    assert earlier is not None
+    earlier_by_name = {row.who.split()[0]: row for row in earlier.seeds}
+    assert earlier_by_name["Eli"].record == "1-0"
+    assert earlier_by_name["Wechs"].record == "0-1"
+
+
+def reseeded_season() -> list[Team]:
+    """The 6 seed wins week 1, so the 1 seed plays the 6 seed after reseeding."""
+    owners = [
+        "Eli",
+        "Joe",
+        "Henry",
+        "Yoni",
+        "Bergel",
+        "Noach",
+        "Wechs",
+        "Harry",
+        "Josh",
+        "Elisha",
+        "Noam",
+        "Yossi",
+    ]
+    teams = [Team(index + 1, f"Club {index + 1}", owners[index]) for index in range(12)]
+    add_week(
+        teams,
+        [
+            (1, 12, 100, 5),
+            (2, 11, 90, 10),
+            (3, 10, 80, 20),
+            (4, 9, 70, 30),
+            (5, 8, 60, 40),
+            (6, 7, 55, 50),
+        ],
+    )
+    add_week(
+        teams,
+        [(3, 6, 40, 80), (4, 5, 70, 30), (7, 12, 40, 10), (8, 11, 40, 10), (9, 10, 40, 10)],
+    )
+    add_week(teams, [(1, 6, 90, 20), (2, 4, 90, 20), (8, 9, 30, 10), (10, 11, 30, 10)])
+    add_week(teams, [(1, 2, 100, 40), (7, 8, 40, 10), (11, 12, 20, 5)])
+    return teams
+
+
+def test_winners_bracket_reseeds_from_2023() -> None:
+    title = read_season(reseeded_season(), 2023, "Eli")
+    assert title is not None
+    assert title.agrees
+    assert "Bracket champion" in title.walk
+    fixed = read_season(reseeded_season(), 2022, "Eli")
+    assert fixed is not None
+    assert fixed.places == ()
+    assert "has to play Yoni (Club 4)" in fixed.walk
 
 
 def test_played_sixth_beats_a_points_leader_who_sat() -> None:
@@ -426,6 +479,7 @@ def main() -> None:
     test_missing_game_names_the_seeds()
     test_top_six_score_adds_a_win_and_the_bottom_six_a_loss()
     test_played_sixth_beats_a_points_leader_who_sat()
+    test_winners_bracket_reseeds_from_2023()
     test_ten_team_years_walk_without_combining_the_last_weeks()
     test_week_17_of_a_17_week_nfl_season_is_ignored()
     test_week_16_still_counts_before_2021()

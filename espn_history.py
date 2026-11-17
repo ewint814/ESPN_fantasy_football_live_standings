@@ -27,6 +27,7 @@ from bracket import (
     owner_matches,
     person_label,
     rank_clubs,
+    semifinal_opponents,
     winner_id,
     winners_four,
     winners_seeds,
@@ -90,6 +91,7 @@ class GameLine:
     home_score: str
     away_score: str
     away: str
+    winner: str = ""
 
 
 @dataclass(frozen=True)
@@ -577,6 +579,13 @@ def _seed_lines(clubs: list[Club], seeds: list[Club], year: int) -> tuple[SeedLi
     return tuple(rows)
 
 
+def _winner_side(game: Game) -> str:
+    won = winner_id(game)
+    if won is None:
+        return ""
+    return "home" if won == game.home_id else "away"
+
+
 def _week_lines(playoff: list[list[Game]], clubs: list[Club]) -> tuple[WeekLine, ...]:
     by_id = {club.team_id: club for club in clubs}
     rows: list[WeekLine] = []
@@ -591,6 +600,7 @@ def _week_lines(playoff: list[list[Game]], clubs: list[Club]) -> tuple[WeekLine,
                     _points(game.home_score),
                     _points(game.away_score),
                     person_label(away) if away else str(game.away_id),
+                    _winner_side(game),
                 )
             )
         rows.append(WeekLine(f"Playoff week {index}", tuple(game_rows)))
@@ -615,7 +625,7 @@ def _detail_text(
 
 def _twelve_gap(clubs: list[Club], year: int, rounds: list[list[Game]]) -> str:
     seeds = _twelve_seeds(clubs, year, rounds[0] if rounds else [])
-    winners = _winners_six_gap(seeds, rounds)
+    winners = _winners_six_gap(seeds, rounds, _reseeds(year))
     if winners is not None:
         return winners
     taken = {club.team_id for club in seeds}
@@ -631,7 +641,18 @@ def _ten_gap(clubs: list[Club], year: int, rounds: list[list[Game]]) -> str:
     return _losers_gap(losers_seeds(clubs, year, 4), rounds)
 
 
-def _winners_six_gap(seeds: list[Club], rounds: list[list[Game]]) -> str | None:
+def _reseeds(year: int) -> bool:
+    """From 2023 the winners' bracket reseeds after the first playoff week.
+
+    2022 used the fixed bracket. 2023 and 2024 give the same games either way,
+    and 2025 only fits the reseeded bracket.
+    """
+    return year >= 2023
+
+
+def _winners_six_gap(
+    seeds: list[Club], rounds: list[list[Game]], reseed: bool = False
+) -> str | None:
     """The first winners'-bracket step that did not happen. None when it resolves."""
     if len(seeds) != 6 or len(rounds) < 3:
         return "The winners' bracket needs six seeds and three rounds."
@@ -663,18 +684,19 @@ def _winners_six_gap(seeds: list[Club], rounds: list[list[Game]]) -> str | None:
             f"4th seed {person_label(fourth)} and 5th seed {person_label(fifth)} tied, "
             "so nobody advanced."
         )
-    semi_one = game_between(rounds[1], first.team_id, high_winner)
-    semi_two = game_between(rounds[1], second.team_id, low_winner)
+    for_first, for_second = semifinal_opponents(seeds, low_winner, high_winner, reseed)
+    semi_one = game_between(rounds[1], first.team_id, for_first)
+    semi_two = game_between(rounds[1], second.team_id, for_second)
     if semi_one is None:
         return (
             f"In the second playoff week, {person_label(first)} (1st in the regular season) "
-            f"has to play {person_label(_club(seeds, high_winner))}. "
+            f"has to play {person_label(_club(seeds, for_first))}. "
             "They did not play, so the walk has no places."
         )
     if semi_two is None:
         return (
             f"In the second playoff week, {person_label(second)} (2nd in the regular season) "
-            f"has to play {person_label(_club(seeds, low_winner))}. "
+            f"has to play {person_label(_club(seeds, for_second))}. "
             "They did not play, so the walk has no places."
         )
     finalist_one = winner_id(semi_one)
@@ -682,12 +704,12 @@ def _winners_six_gap(seeds: list[Club], rounds: list[list[Game]]) -> str | None:
     if finalist_one is None:
         return (
             f"The semifinal between {person_label(first)} and "
-            f"{person_label(_club(seeds, high_winner))} tied."
+            f"{person_label(_club(seeds, for_first))} tied."
         )
     if finalist_two is None:
         return (
             f"The semifinal between {person_label(second)} and "
-            f"{person_label(_club(seeds, low_winner))} tied."
+            f"{person_label(_club(seeds, for_second))} tied."
         )
     final = game_between(rounds[2], finalist_one, finalist_two)
     if final is None:
@@ -840,14 +862,14 @@ def _games_at(teams: list[Any], index: int) -> list[Game]:
     return games
 
 
-def _score_bonus(teams: list[Any], end: int) -> dict[int, tuple[int, int]]:
+def _score_bonus(teams: list[Any], end: int, year: int) -> dict[int, tuple[int, int]]:
     """Extra win or loss each week. The six highest scores win, the other six lose.
 
-    This is the second matchup in a 12-team season. Points are not added again.
+    This second matchup starts in 2023. Points are not added again.
     A score tied with 6th place also wins.
     """
     bonus = {team.team_id: (0, 0) for team in teams}
-    if len(teams) < 12:
+    if year < 2023 or len(teams) < 12:
         return bonus
     wins = {team.team_id: 0 for team in teams}
     losses = {team.team_id: 0 for team in teams}
@@ -875,7 +897,7 @@ def _score_bonus(teams: list[Any], end: int) -> dict[int, tuple[int, int]]:
 def _clubs(teams: list[Any], through: int, year: int) -> list[Club]:
     """Wins and points before the playoffs, and never from the last NFL week."""
     end = min(through, _last_counting_week(year))
-    bonus = _score_bonus(teams, end)
+    bonus = _score_bonus(teams, end, year)
     clubs: list[Club] = []
     for team in teams:
         wins, losses = bonus[team.team_id]
@@ -924,7 +946,7 @@ def _champion_twelve(
         return None
     playoff = playoff_all[:TWELVE_TEAM_PLAYOFF_WEEKS]
     seeds = _twelve_seeds(clubs, year, playoff[0])
-    result = winners_six(seeds, playoff)
+    result = winners_six(seeds, playoff, _reseeds(year))
     if result is None:
         return None
     taken = {club.team_id for club in seeds}

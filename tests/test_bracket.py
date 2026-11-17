@@ -281,6 +281,21 @@ def test_matching_places_are_not_differences() -> None:
     assert all(row.differs is False for row in check.rows)
 
 
+def test_top_six_score_adds_a_win_and_the_bottom_six_a_loss() -> None:
+    """The second matchup is the weekly score, not a second opponent."""
+    teams = twelve_team_season()
+    teams[6].scores[0] = 200
+    title = read_season(teams, 2024, "Eli")
+    assert title is not None
+    by_name = {row.who.split()[0]: row for row in title.seeds}
+    assert by_name["Eli"].record == "2-0"
+    assert by_name["Eli"].points == "100.0"
+    assert by_name["Wechs"].record == "1-1"
+    assert by_name["Wechs"].points == "200.0"
+    assert by_name["Yossi"].record == "0-2"
+    assert by_name["Noach"].record == "1-1"
+
+
 def test_played_sixth_beats_a_points_leader_who_sat() -> None:
     """2025: the points leader is 6th only when that team played the 3 seed."""
     teams = twelve_team_season()
@@ -409,6 +424,7 @@ def main() -> None:
     test_walk_disagreement_is_a_note()
     test_missing_name_still_lists_espn_owners()
     test_missing_game_names_the_seeds()
+    test_top_six_score_adds_a_win_and_the_bottom_six_a_loss()
     test_played_sixth_beats_a_points_leader_who_sat()
     test_ten_team_years_walk_without_combining_the_last_weeks()
     test_week_17_of_a_17_week_nfl_season_is_ignored()

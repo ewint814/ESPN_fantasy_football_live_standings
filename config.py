@@ -19,15 +19,7 @@ class Config:
     host: str = "0.0.0.0"
     port: int = 5000
     debug: bool = False
-    
-    # Update intervals (seconds)
-    update_interval_active: int = 120  # 2 minutes during games
-    update_interval_off_hours: int = 300  # 5 minutes off hours
-    update_interval_no_games: int = 600  # 10 minutes when no games
-    
-    # API timeouts
-    api_timeout: int = 10
-    
+
     @classmethod
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables."""

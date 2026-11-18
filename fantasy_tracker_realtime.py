@@ -8,7 +8,7 @@ Uses SSE (Server-Sent Events) for push-based real-time updates.
 import os
 import logging
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any, Generator
 from flask import Flask, render_template, jsonify, Response, stream_with_context
 from visit_log import VisitLog, register_visit_routes
@@ -76,7 +76,6 @@ class FantasyTracker:
         
         # Real-time update tracking
         self.data_changed: bool = False
-        self.clients: List = []  # Connected SSE clients
         
         logger.info(f"🏈 Initializing Real-Time Fantasy Tracker for {self.nfl_year} NFL season")
         logger.info(f"📅 Current week: {self.current_week}")

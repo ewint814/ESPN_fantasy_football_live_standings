@@ -316,13 +316,347 @@
             font-size: 0.82em;
         }
 
+
+        .block {
+            margin: 0 0 26px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .loading-note {
+            text-align: center;
+        }
+
+        .scroll-x {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .career {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .career th,
+        .career td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .career th {
+            font-size: 0.78em;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .career th[aria-sort] {
+            color: #333;
+        }
+
+        .career th:first-child,
+        .career td:first-child {
+            text-align: left;
+            position: sticky;
+            left: 0;
+            background: white;
+            font-weight: 600;
+            box-shadow: 1px 0 0 #eee;
+        }
+
+        .career tr:last-child td {
+            border-bottom: none;
+        }
+
+        .career .rings {
+            color: #b8860b;
+            letter-spacing: 1px;
+        }
+
+        .records {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            gap: 10px;
+        }
+
+        .record {
+            padding: 12px 14px;
+        }
+
+        .record-label {
+            font-size: 0.72em;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 600;
+        }
+
+        .record-value {
+            font-size: 1.7em;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 1.2;
+            margin: 2px 0;
+        }
+
+        .record-who {
+            font-weight: 600;
+        }
+
+        .record-detail {
+            color: #777;
+            font-size: 0.84em;
+        }
+
+        .h2h {
+            padding: 12px 14px;
+        }
+
+        .h2h-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .h2h select {
+            font: inherit;
+            font-weight: 600;
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            min-height: 40px;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .chip {
+            font: inherit;
+            font-size: 0.85em;
+            font-weight: 600;
+            padding: 6px 12px;
+            min-height: 36px;
+            border: 1px solid #ccc;
+            border-radius: 18px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .chip[aria-pressed="true"] {
+            background: #333;
+            border-color: #333;
+            color: white;
+        }
+
+        .h2h-total {
+            color: #666;
+            font-size: 0.88em;
+            margin-bottom: 6px;
+        }
+
+        .h2h-row {
+            display: grid;
+            grid-template-columns: minmax(5.5em, auto) 1fr auto;
+            gap: 10px;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .h2h-row:last-child {
+            border-bottom: none;
+        }
+
+        .h2h-name {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .h2h-bar {
+            display: flex;
+            height: 10px;
+            border-radius: 5px;
+            overflow: hidden;
+            background: #eee;
+        }
+
+        .h2h-bar .w { background: #2e7d32; }
+        .h2h-bar .t { background: #bbb; }
+        .h2h-bar .l { background: #c62828; }
+
+        .h2h-rec {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            font-weight: 600;
+            min-width: 4.5em;
+            text-align: right;
+        }
+
+        .h2h-empty {
+            color: #888;
+            font-size: 0.9em;
+            padding: 6px 0;
+        }
+
+        .season {
+            min-width: 0;
+        }
+
+        .season[open]:has(.season-extras) {
+            grid-column: 1 / -1;
+        }
+
+        .season-section {
+            margin-top: 14px;
+        }
+
+        .season-section h3 {
+            font-size: 0.72em;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #888;
+            margin-bottom: 6px;
+        }
+
+        .season-places {
+            max-width: 420px;
+        }
+
+        .bracket {
+            display: flex;
+            gap: 14px;
+            padding-bottom: 6px;
+        }
+
+        .round {
+            flex: 0 0 auto;
+            min-width: 150px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .round-games {
+            flex: 1 1 auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            gap: 8px;
+        }
+
+        .round-label {
+            font-size: 0.78em;
+            color: #888;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .match {
+            border: 1px solid #e3e3e3;
+            border-radius: 4px;
+            font-size: 0.88em;
+            background: #fafafa;
+        }
+
+        .match-line {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 4px 8px;
+            color: #777;
+        }
+
+        .match-line + .match-line {
+            border-top: 1px solid #eee;
+        }
+
+        .match-line.won {
+            color: #222;
+            font-weight: 700;
+        }
+
+        .match-line .score {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .weeks {
+            width: 100%;
+            max-width: 520px;
+            border-collapse: collapse;
+            font-size: 0.86em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .weeks td,
+        .weeks th {
+            padding: 4px 6px;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        .weeks th {
+            color: #888;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .weeks .num {
+            text-align: right;
+            color: #777;
+        }
+
+        .weeks .hi { color: #2e7d32; font-weight: 600; }
+        .weeks .lo { color: #c62828; font-weight: 600; }
+
+        .more summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            padding: 6px 0;
+        }
+
+        @media (min-width: 769px) {
+            .season[open]:has(.season-extras) .season-body {
+                display: grid;
+                grid-template-columns: minmax(240px, 340px) minmax(0, 1fr);
+                gap: 0 28px;
+                align-items: start;
+            }
+
+            .season-extras > .season-section:first-child {
+                margin-top: 0;
+            }
+        }
+
         @media (max-width: 768px) {
             .header { padding: 16px 12px; }
             .header h1 { font-size: 1.35em; }
             .container { padding: 12px 12px 28px; }
-            .seasons { grid-template-columns: 1fr; }
+            .seasons { grid-template-columns: minmax(0, 1fr); }
             .plate { padding: 16px 12px 14px; }
             .plate-frame { padding: 14px 12px 10px; }
+            .records { grid-template-columns: 1fr 1fr; }
+            .record-value { font-size: 1.35em; }
         }
     </style>
 </head>
@@ -370,8 +704,98 @@
             {% endfor %}
         </ul>
 
+
+        {% if stats and stats.loaded < season_count %}
+        <p class="note loading-note">{{ stats.loaded }} of {{ season_count }} seasons loaded from ESPN. Refresh in a minute for the rest.</p>
+        {% endif %}
+
+        {% if stats and stats.careers %}
+        <section class="block" aria-label="Careers">
+            <div class="section-head"><h2>Careers</h2></div>
+            <div class="card scroll-x">
+                <table class="career" id="careerTable">
+                    <thead>
+                        <tr>
+                            <th data-type="text">Person</th>
+                            <th data-type="num" title="Seasons played">Yrs</th>
+                            <th data-type="num">Titles</th>
+                            <th data-type="num" title="Last place">Sackos</th>
+                            <th data-type="num" title="Average finish, lower is better">Avg</th>
+                            <th data-type="num">Best</th>
+                            <th data-type="num" title="Regular-season record">Record</th>
+                            <th data-type="num" title="Regular-season win share">Pct</th>
+                            <th data-type="num" title="Regular-season points">Points</th>
+                            <th data-type="num" title="Winners' bracket trips">Playoffs</th>
+                            <th data-type="num" title="Weeks as the top scorer">Top wk</th>
+                            <th data-type="num" title="Weeks as the low scorer">Low wk</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in stats.careers %}
+                        <tr>
+                            <td>{{ row.person }}</td>
+                            <td data-v="{{ row.seasons }}">{{ row.seasons }}</td>
+                            <td data-v="{{ row.titles }}">{% if row.titles %}<span class="rings">{{ "●" * row.titles }}</span>{% else %}0{% endif %}</td>
+                            <td data-v="{{ row.sackos }}">{{ row.sackos }}</td>
+                            <td data-v="{{ row.average if row.average != '—' else 99 }}">{{ row.average }}</td>
+                            <td data-v="{{ row.best[:-2] if row.best != '—' else 99 }}">{{ row.best }}</td>
+                            <td data-v="{{ row.wins }}">{{ row.record }}</td>
+                            <td data-v="{{ row.win_pct if row.win_pct != '—' else 0 }}">{{ row.win_pct }}</td>
+                            <td data-v="{{ row.points_for }}">{{ "{:,.1f}".format(row.points_for) }}</td>
+                            <td data-v="{{ row.playoffs }}">{{ row.playoffs }}</td>
+                            <td data-v="{{ row.highs }}">{{ row.highs }}</td>
+                            <td data-v="{{ row.lows }}">{{ row.lows }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="note" style="margin-top:6px">Titles, Sackos, and finishes are from the sheet. Records, points, playoffs, and weekly highs and lows are the regular season on ESPN. Tap a column to sort.</p>
+        </section>
+        {% endif %}
+
+        {% if stats and stats.records %}
+        <section class="block" aria-label="Records">
+            <div class="section-head"><h2>Records</h2></div>
+            <div class="records">
+                {% for item in stats.records %}
+                <div class="card record">
+                    <div class="record-label">{{ item.label }}</div>
+                    <div class="record-value">{{ item.value }}</div>
+                    <div class="record-who">{{ item.who }}</div>
+                    <div class="record-detail">{{ item.detail }}</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        {% if stats and stats.people %}
+        <section class="block" aria-label="Head to head">
+            <div class="section-head"><h2>Head to head</h2></div>
+            <div class="card h2h">
+                <div class="h2h-controls">
+                    <select id="h2hPerson" aria-label="Person">
+                        {% for person in stats.people %}
+                        <option value="{{ person }}">{{ person }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="chips" role="group" aria-label="Games">
+                        <button type="button" class="chip" data-kind="overall" aria-pressed="true">Overall</button>
+                        <button type="button" class="chip" data-kind="regular" aria-pressed="false">Regular season</button>
+                        <button type="button" class="chip" data-kind="winners" aria-pressed="false">Winners' bracket</button>
+                        <button type="button" class="chip" data-kind="losers" aria-pressed="false">Losers' bracket</button>
+                    </div>
+                </div>
+                <p class="h2h-total" id="h2hTotal"></p>
+                <div id="h2hRows"></div>
+            </div>
+            <script type="application/json" id="h2hData">{{ stats.head_to_head | safe }}</script>
+        </section>
+        {% endif %}
+
         <div class="section-head">
-            <h2>Finishes</h2>
+            <h2>Seasons</h2>
             <button type="button" id="toggleSeasons" class="text-btn">Show all</button>
         </div>
         <div class="seasons">
@@ -383,14 +807,68 @@
                     <span class="chevron" aria-hidden="true"></span>
                 </summary>
                 <div class="season-body">
+                    <div class="season-places">
+                    <div>
                     {% for row in season.rows %}
                     <div class="place-row{% if row.champion %} champ{% endif %}{% if row.gap %} gap{% endif %}">
                         <span class="place">{{ row.label }}</span>
                         <span class="name">{{ row.name if row.name else "not written down" }}</span>
                     </div>
                     {% endfor %}
+                    </div>
                     {% if season.joined %}
                     <p class="joined">Joined: {{ season.joined | join(", ") }}</p>
+                    {% endif %}
+                    </div>
+                    {% set extra = stats.seasons.get(season.year) if stats else none %}
+                    {% if extra %}
+                    <div class="season-extras">
+                    {% for side, rounds in (("Winners' bracket", extra.winners), ("Losers' bracket", extra.losers)) %}
+                    {% if rounds %}
+                    <div class="season-section">
+                        <h3>{{ side }}</h3>
+                        <div class="scroll-x">
+                            <div class="bracket">
+                                {% for round in rounds %}
+                                <div class="round">
+                                    <div class="round-label">{{ round.label }}</div>
+                                    <div class="round-games">
+                                    {% for game in round.games %}
+                                    <div class="match">
+                                        <div class="match-line{% if game.top_won %} won{% endif %}"><span>{{ game.top }}</span><span class="score">{{ game.top_score }}</span></div>
+                                        <div class="match-line{% if game.bottom_won %} won{% endif %}"><span>{{ game.bottom }}</span><span class="score">{{ game.bottom_score }}</span></div>
+                                    </div>
+                                    {% endfor %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                    {% if extra.weeks %}
+                    <details class="season-section more">
+                        <summary>Weekly high and low</summary>
+                        <div class="scroll-x">
+                            <table class="weeks">
+                                <thead><tr><th>Wk</th><th>High</th><th></th><th>Low</th><th></th></tr></thead>
+                                <tbody>
+                                    {% for week in extra.weeks %}
+                                    <tr>
+                                        <td>{{ week.week }}</td>
+                                        <td class="hi">{{ week.high }}</td>
+                                        <td class="num">{{ "%.1f"|format(week.high_score) }}</td>
+                                        <td class="lo">{{ week.low }}</td>
+                                        <td class="num">{{ "%.1f"|format(week.low_score) }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </details>
+                    {% endif %}
+                    </div>
                     {% endif %}
                 </div>
             </details>
@@ -420,6 +898,104 @@
         seasonCards.forEach((card) => {
             card.addEventListener("toggle", labelToggle);
         });
+
+        const careerTable = document.getElementById("careerTable");
+        if (careerTable) {
+            const headers = careerTable.querySelectorAll("th");
+            headers.forEach((th, column) => {
+                th.addEventListener("click", () => {
+                    const body = careerTable.tBodies[0];
+                    const rows = Array.from(body.rows);
+                    const text = th.dataset.type === "text";
+                    const lowFirst = text || th.textContent.trim() === "Avg" || th.textContent.trim() === "Best";
+                    const flip = th.getAttribute("aria-sort") === "ascending" || th.getAttribute("aria-sort") === "descending";
+                    const wasLow = th.getAttribute("aria-sort") === "ascending";
+                    const ascending = flip ? !wasLow : lowFirst;
+                    headers.forEach((other) => other.removeAttribute("aria-sort"));
+                    th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
+                    const value = (row) => {
+                        const cell = row.cells[column];
+                        return text ? cell.textContent.trim() : parseFloat(cell.dataset.v);
+                    };
+                    rows.sort((a, b) => {
+                        const x = value(a);
+                        const y = value(b);
+                        const order = text ? x.localeCompare(y) : x - y;
+                        return ascending ? order : -order;
+                    });
+                    rows.forEach((row) => body.appendChild(row));
+                });
+            });
+        }
+
+        const h2hData = document.getElementById("h2hData");
+        if (h2hData) {
+            const board = JSON.parse(h2hData.textContent);
+            const personSelect = document.getElementById("h2hPerson");
+            const chips = document.querySelectorAll(".chip");
+            const rowsBox = document.getElementById("h2hRows");
+            const total = document.getElementById("h2hTotal");
+            let kind = "overall";
+
+            function recordText(line) {
+                const [w, l, t] = line;
+                return t ? `${w}-${l}-${t}` : `${w}-${l}`;
+            }
+
+            function drawH2H() {
+                const person = personSelect.value;
+                const opponents = board[person] || {};
+                const rows = Object.entries(opponents)
+                    .map(([name, kinds]) => [name, kinds[kind]])
+                    .filter(([, line]) => line[0] + line[1] + line[2] > 0)
+                    .sort((a, b) => {
+                        const share = (line) => (line[0] + line[2] / 2) / (line[0] + line[1] + line[2]);
+                        return share(b[1]) - share(a[1]) || (b[1][0] + b[1][1]) - (a[1][0] + a[1][1]);
+                    });
+                const sum = rows.reduce((acc, [, line]) => [acc[0] + line[0], acc[1] + line[1], acc[2] + line[2]], [0, 0, 0]);
+                total.textContent = rows.length ? `${person}: ${recordText(sum)} against everyone` : "";
+                rowsBox.replaceChildren();
+                if (!rows.length) {
+                    const empty = document.createElement("p");
+                    empty.className = "h2h-empty";
+                    empty.textContent = "No games of this kind.";
+                    rowsBox.appendChild(empty);
+                    return;
+                }
+                rows.forEach(([name, line]) => {
+                    const games = line[0] + line[1] + line[2];
+                    const row = document.createElement("div");
+                    row.className = "h2h-row";
+                    const label = document.createElement("span");
+                    label.className = "h2h-name";
+                    label.textContent = name;
+                    const bar = document.createElement("div");
+                    bar.className = "h2h-bar";
+                    [["w", line[0]], ["t", line[2]], ["l", line[1]]].forEach(([cls, count]) => {
+                        if (!count) return;
+                        const piece = document.createElement("span");
+                        piece.className = cls;
+                        piece.style.width = `${(count / games) * 100}%`;
+                        bar.appendChild(piece);
+                    });
+                    const rec = document.createElement("span");
+                    rec.className = "h2h-rec";
+                    rec.textContent = recordText(line);
+                    row.append(label, bar, rec);
+                    rowsBox.appendChild(row);
+                });
+            }
+
+            personSelect.addEventListener("change", drawH2H);
+            chips.forEach((chip) => {
+                chip.addEventListener("click", () => {
+                    kind = chip.dataset.kind;
+                    chips.forEach((other) => other.setAttribute("aria-pressed", String(other === chip)));
+                    drawH2H();
+                });
+            });
+            drawH2H();
+        }
     </script>
 </body>
 </html>

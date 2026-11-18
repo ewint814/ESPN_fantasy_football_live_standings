@@ -10,13 +10,15 @@ middle places were filled in.
 
 from __future__ import annotations
 
+import json
 import logging
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from espn_api.football import League
 
 from bracket import (
+    BracketGame,
     Club,
     Game,
     combine_weeks,
@@ -32,7 +34,15 @@ from bracket import (
     winners_seeds,
     winners_six,
 )
-from league_history import champion
+from league_history import champion, sheet_name_for
+from league_stats import (
+    GameRecord,
+    SeasonRecord,
+    TeamRecord,
+    WeekScores,
+    record_from_dict,
+    record_to_dict,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +76,8 @@ class _Walked:
     champion: Club
     places: tuple[tuple[int, Club, str], ...]
     pairs: tuple[tuple[int, int, tuple[Club, Club], str], ...]
+    games: tuple[BracketGame, ...] = ()
+    seeds: tuple[int, ...] = ()
 
 
 def owner_name(owners: list[dict[str, Any]]) -> str:
@@ -81,21 +93,32 @@ def owner_name(owners: list[dict[str, Any]]) -> str:
     return str(member.get("displayName") or "").strip()
 
 
-def load_titles(league_id: int, espn_s2: str, swid: str, years: list[int]) -> dict[int, Title]:
-    """Fetch each season and keep the titles the sheet also names."""
-    found: dict[int, Title] = {}
-    for year in years:
-        try:
-            league = League(league_id=league_id, year=year, espn_s2=espn_s2, swid=swid)
-            regular = getattr(getattr(league, "settings", None), "reg_season_count", None)
-            weekly = _weekly_points(league) if len(league.teams) < 12 else {}
-            title = read_season(league.teams, year, champion(year), regular, weekly)
-        except Exception as exc:
-            logger.warning("ESPN history %s failed: %s", year, exc)
-            continue
-        if title is not None:
-            found[year] = title
-    return found
+def load_season(
+    league_id: int, espn_s2: str, swid: str, year: int
+) -> tuple[Title | None, SeasonRecord | None]:
+    """One season from ESPN: the plaque title and the season's games."""
+    try:
+        league = League(league_id=league_id, year=year, espn_s2=espn_s2, swid=swid)
+        regular = getattr(getattr(league, "settings", None), "reg_season_count", None)
+        weekly = _weekly_points(league) if len(league.teams) < 12 else {}
+        return read_history(league.teams, year, champion(year), regular, weekly)
+    except Exception as exc:
+        logger.warning("ESPN history %s failed: %s", year, exc)
+        return None, None
+
+
+def read_history(
+    teams: list[Any],
+    year: int,
+    sheet_champion: str | None,
+    regular_season_weeks: int | None = None,
+    weekly: WeeklyPoints | None = None,
+) -> tuple[Title | None, SeasonRecord | None]:
+    if not teams:
+        return None, None
+    walked = _walk(teams, year, regular_season_weeks, weekly)
+    title = _title(teams, year, sheet_champion, walked)
+    return title, _season_record(teams, year, regular_season_weeks, walked)
 
 
 def read_season(
@@ -106,9 +129,16 @@ def read_season(
     weekly: WeeklyPoints | None = None,
 ) -> Title | None:
     """Team name for the sheet champion, using the bracket when this year has one."""
-    if not sheet_champion or not teams:
+    if not teams:
         return None
-    walked = _walk(teams, year, regular_season_weeks, weekly)
+    return _title(teams, year, sheet_champion, _walk(teams, year, regular_season_weeks, weekly))
+
+
+def _title(
+    teams: list[Any], year: int, sheet_champion: str | None, walked: _Walked | None
+) -> Title | None:
+    if not sheet_champion:
+        return None
     places = _place_rows(walked)
     notes = () if walked is None else tuple((place, note) for place, _club, note in walked.places)
     pairs = _pair_rows(walked)
@@ -120,6 +150,93 @@ def read_season(
     if matched is None:
         return Title(year, "", "", False)
     return Title(year, matched[0], matched[1], True)
+
+
+def _person(team: Any) -> str:
+    owners = list(getattr(team, "owners", []) or [])
+    return sheet_name_for(_owner_text(owners)) or owner_name(owners) or str(team.team_name)
+
+
+def _season_record(
+    teams: list[Any], year: int, regular_season_weeks: int | None, walked: _Walked | None
+) -> SeasonRecord:
+    """Every game ESPN has for the season, with playoff games tagged by bracket side."""
+    indexes, weeks = _played_weeks(teams, year)
+    _playoff, start = _playoff_window(indexes, weeks, year, len(teams), regular_season_weeks)
+    if start is None:
+        start = (indexes[-1] + 1) if indexes else 0
+    clubs = _clubs(teams, start, year)
+    if walked is not None:
+        seed_ids = walked.seeds
+    else:
+        seed_ids = tuple(
+            club.team_id for club in winners_seeds(clubs, year, 6 if len(teams) >= 12 else 4)
+        )
+    seed_of = {team_id: index for index, team_id in enumerate(seed_ids, start=1)}
+    team_rows = tuple(
+        TeamRecord(
+            club.team_id,
+            club.name.strip(),
+            _person(next(team for team in teams if team.team_id == club.team_id)),
+            club.wins,
+            club.losses,
+            club.ties,
+            round(club.points_for, 2),
+            seed_of.get(club.team_id),
+        )
+        for club in clubs
+    )
+    games: list[GameRecord] = []
+    week_rows: list[WeekScores] = []
+    for index, week in zip(indexes, weeks, strict=True):
+        if index >= start:
+            continue
+        for game in week:
+            games.append(
+                GameRecord(
+                    "regular",
+                    f"Week {index + 1}",
+                    game.home_id,
+                    game.away_id,
+                    game.home_score,
+                    game.away_score,
+                )
+            )
+        scores = tuple(
+            (team.team_id, float(team.scores[index] or 0))
+            for team in teams
+            if getattr(team.schedule[index], "team_id", None) not in (None, team.team_id)
+            and team.outcomes[index] in ("W", "L", "T")
+        )
+        week_rows.append(WeekScores(index + 1, scores))
+    if walked is not None:
+        playoff_games = [
+            GameRecord(
+                item.side,
+                item.label,
+                item.game.home_id,
+                item.game.away_id,
+                round(item.game.home_score, 2),
+                round(item.game.away_score, 2),
+            )
+            for item in walked.games
+        ]
+    else:
+        seeded = set(seed_ids)
+        playoff_games = [
+            GameRecord(
+                "winners" if {game.home_id, game.away_id} <= seeded else "losers",
+                f"Week {index + 1}",
+                game.home_id,
+                game.away_id,
+                game.home_score,
+                game.away_score,
+            )
+            for index, week in zip(indexes, weeks, strict=True)
+            if index >= start
+            for game in week
+        ]
+    return SeasonRecord(year, team_rows, tuple(games + playoff_games), tuple(week_rows))
 
 
 def _owner_text(owners: list[dict[str, Any]]) -> str:
@@ -234,16 +351,22 @@ def _champion_ten_split(
     weekly: WeeklyPoints,
 ) -> _Walked | None:
     clubs = _clubs(teams, start, year)
-    result = winners_four(winners_seeds(clubs, year, 4), playoff)
+    seeds = winners_seeds(clubs, year, 4)
+    played: list[BracketGame] = []
+    result = winners_four(seeds, playoff, played)
     if result is None:
         return None
     field = losers_seeds(clubs, year, 4)
     rounds = _losers_weeks(field, weekly, start)
     if rounds is None:
         return None
-    losers = losers_six(field, rounds, middle_place="7th")
+    losers = losers_six(field, rounds, middle_place="7th", played=played)
     if losers is None:
         return None
+    games = tuple(
+        item if item.side == "losers" and item.label.startswith("Round") else _two_weeks(item)
+        for item in played
+    )
     labels = (
         "Won the two-week final.",
         "Lost the two-week final.",
@@ -254,7 +377,11 @@ def _champion_ten_split(
     places.extend(
         (4 + index, placed.club, placed.reason) for index, placed in enumerate(losers, start=1)
     )
-    return _Walked(result[0], tuple(places), ())
+    return _Walked(result[0], tuple(places), (), games, tuple(club.team_id for club in seeds))
+
+
+def _two_weeks(item: BracketGame) -> BracketGame:
+    return BracketGame(item.side, f"{item.label} (2 weeks)", item.game)
 
 
 def _walk(
@@ -499,12 +626,14 @@ def _champion_twelve(
         return None
     playoff = playoff_all[:TWELVE_TEAM_PLAYOFF_WEEKS]
     seeds = _twelve_seeds(clubs, year, playoff[0])
-    result = winners_six(seeds, playoff, _reseeds(year))
+    played: list[BracketGame] = []
+    result = winners_six(seeds, playoff, _reseeds(year), played)
     if result is None:
         return None
     taken = {club.team_id for club in seeds}
     loser_field = [club for club in rank_clubs(clubs) if club.team_id not in taken]
-    losers = losers_six(loser_field, playoff)
+    losers_played: list[BracketGame] = []
+    losers = losers_six(loser_field, playoff, played=losers_played)
     if losers is None:
         return None
     champion_club, runner, semi_one, semi_two = result
@@ -514,6 +643,8 @@ def _champion_twelve(
     ]
     third = game_between(playoff[2], semi_one.team_id, semi_two.team_id)
     pairs: list[tuple[int, int, tuple[Club, Club], str]] = []
+    if third is not None:
+        played.append(BracketGame("winners", "3rd place", third))
     if third is not None and winner_id(third) is not None:
         by_id = {club.team_id: club for club in seeds}
         third_winner = by_id[winner_id(third) or 0]
@@ -547,6 +678,8 @@ def _champion_twelve(
             _club(seeds, loser_id(first_high) or 0),
         )
         fifth_game = _two_week_game(playoff[1], playoff[2], fifth_pair)
+        if fifth_game is not None:
+            played.append(BracketGame("winners", "5th place (2 weeks)", fifth_game))
         if fifth_game is not None and winner_id(fifth_game) is not None:
             fifth_winner = _club(seeds, winner_id(fifth_game) or 0)
             fifth_loser = _club(seeds, loser_id(fifth_game) or 0)
@@ -581,7 +714,13 @@ def _champion_twelve(
     places.extend(
         (6 + index, placed.club, placed.reason) for index, placed in enumerate(losers, start=1)
     )
-    return _Walked(champion_club, tuple(places), tuple(pairs))
+    return _Walked(
+        champion_club,
+        tuple(places),
+        tuple(pairs),
+        tuple(played + losers_played),
+        tuple(club.team_id for club in seeds),
+    )
 
 
 def _champion_ten(
@@ -601,10 +740,11 @@ def _champion_ten(
     if rounds is None:
         return None
     seeds = winners_seeds(clubs, year, 4)
-    result = winners_four(seeds, rounds)
+    played: list[BracketGame] = []
+    result = winners_four(seeds, rounds, played)
     if result is None:
         return None
-    losers = losers_six(losers_seeds(clubs, year, 4), rounds)
+    losers = losers_six(losers_seeds(clubs, year, 4), rounds, played=played)
     if losers is None:
         return None
     labels = (
@@ -617,4 +757,50 @@ def _champion_ten(
     places.extend(
         (4 + index, placed.club, placed.reason) for index, placed in enumerate(losers, start=1)
     )
-    return _Walked(result[0], tuple(places), ())
+    return _Walked(result[0], tuple(places), (), tuple(played), tuple(c.team_id for c in seeds))
+
+
+def dump_snapshot(titles: dict[int, Title], records: dict[int, SeasonRecord]) -> str:
+    """Finished seasons as JSON, so they can be read back without asking ESPN."""
+    years = sorted(set(titles) | set(records))
+    payload = [
+        {
+            "year": year,
+            "title": asdict(titles[year]) if year in titles else None,
+            "record": record_to_dict(records[year]) if year in records else None,
+        }
+        for year in years
+    ]
+    return json.dumps(payload, indent=1, sort_keys=True)
+
+
+def load_snapshot(text: str) -> tuple[dict[int, Title], dict[int, SeasonRecord]]:
+    titles: dict[int, Title] = {}
+    records: dict[int, SeasonRecord] = {}
+    for item in json.loads(text):
+        year = int(item["year"])
+        if item.get("title"):
+            titles[year] = _title_from_dict(item["title"])
+        if item.get("record"):
+            records[year] = record_from_dict(item["record"])
+    return titles, records
+
+
+def _title_from_dict(data: dict[str, Any]) -> Title:
+    return Title(
+        int(data["year"]),
+        str(data["team_name"]),
+        str(data["owner"]),
+        bool(data["agrees"]),
+        tuple((int(place), str(team), str(owner)) for place, team, owner in data["places"]),
+        tuple((int(place), str(note)) for place, note in data["place_notes"]),
+        tuple(
+            (
+                int(start),
+                int(end),
+                ((str(one[0]), str(one[1])), (str(two[0]), str(two[1]))),
+                str(reason),
+            )
+            for start, end, (one, two), reason in data["pairs"]
+        ),
+    )

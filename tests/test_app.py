@@ -179,8 +179,9 @@ def test_history() -> bool:
         ]
         tenth_2016 = [row.name for row in by_year[2016].rows if row.label == "10th"]
         assert tenth_2016 == ["Yossi"]
-        gap = next(row for row in by_year[2014].rows if row.gap)
-        assert gap.label == "8th–9th"
+        places_2014 = [row.name for row in by_year[2014].rows]
+        assert places_2014[7:] == ["Jared", "Joe", "Eli"]
+        assert not any(row.gap for row in by_year[2014].rows)
 
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         app = Flask(__name__, template_folder=os.path.join(root, "templates"))
@@ -192,7 +193,7 @@ def test_history() -> bool:
             )
         assert "Schmacked History" in page
         assert 'href="/"' in page
-        assert page.count("not written down") == 1
+        assert "not written down" not in page
         assert "Joined: Yossi" in page
         rows = page.split('class="plate-row"')[1:]
         assert len(rows) == 15

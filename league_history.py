@@ -6,8 +6,8 @@ rankings do not match this league's losers' bracket, so they are not used.
 The sheet left most middle places blank for 2012 through 2018. Those
 come from replaying each year's playoff bracket with ESPN's scores, and
 Eli checked them. The sheet had Bergel in both 1st and 10th for 2016; the
-replay puts Yossi 10th. 2014 keeps the sheet's Jared in 10th, so 8th and
-9th stay blank until that year is settled. A Harry cell sits in the 2011
+replay puts Yossi 10th. For 2014 the replay puts Jared 8th and Eli 10th,
+which Eli confirmed. A Harry cell sits in the 2011
 column with no place next to it, so it is not a finish.
 """
 
@@ -180,7 +180,7 @@ SEASONS: tuple[Season, ...] = (
         ("Eli", "Ezra", "Harry", "Yoni", "Yossi", "Noach", "Joe", "Henry", "Wechs", "Noam"),
         ("Yossi",),
     ),
-    Season(2014, ("Noach", "Ezra", "Henry", "Harry", "Yoni", "Noam", "Wechs", None, None, "Jared")),
+    Season(2014, ("Noach", "Ezra", "Henry", "Harry", "Yoni", "Noam", "Wechs", "Jared", "Joe", "Eli")),
     Season(
         2013,
         ("Henry", "Yoni", "Wechs", "Ezra", "Jared", "Joe", "Harry", "Noach", "Noam", "Eli"),

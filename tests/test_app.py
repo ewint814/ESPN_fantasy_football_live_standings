@@ -156,7 +156,6 @@ def test_history() -> bool:
     try:
         from flask import Flask, render_template
 
-        from espn_history import season_checks
         from league_history import champion, ring_counts, season_views
 
         assert champion(2025) == "Bergel"
@@ -174,11 +173,14 @@ def test_history() -> bool:
         places_2011 = [row.name for row in by_year[2011].rows]
         assert places_2011 == ["Eli", "Austin", "Yoni", "Noam", "Joe", "Tuvia", "Noach", "Goggles"]
         assert by_year[2012].joined == ("Wechs", "Henry", "Ezra")
-        gap = next(row for row in by_year[2018].rows if row.gap)
-        assert gap.label == "5th–9th"
-        assert gap.name is None
+        places_2018 = [row.name for row in by_year[2018].rows]
+        assert places_2018 == [
+            "Wechs", "Noach", "Henry", "Joe", "Eli", "Harry", "Noam", "Yossi", "Bergel", "Yoni"
+        ]
         tenth_2016 = [row.name for row in by_year[2016].rows if row.label == "10th"]
-        assert tenth_2016 == ["Bergel"]
+        assert tenth_2016 == ["Yossi"]
+        gap = next(row for row in by_year[2014].rows if row.gap)
+        assert gap.label == "8th–9th"
 
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         app = Flask(__name__, template_folder=os.path.join(root, "templates"))
@@ -187,11 +189,10 @@ def test_history() -> bool:
                 "history.html",
                 rings=ring_counts(),
                 seasons=season_views(),
-                checks=season_checks({}),
             )
         assert "Schmacked History" in page
         assert 'href="/"' in page
-        assert page.count("not written down") == 7
+        assert page.count("not written down") == 1
         assert "Joined: Yossi" in page
         rows = page.split('class="plate-row"')[1:]
         assert len(rows) == 15
@@ -210,35 +211,12 @@ def test_history() -> bool:
                 rings=ring_counts(),
                 seasons=season_views(),
                 titles={2025: Title(2025, "Club Bergel", "Bergel Last", True)},
-                title_notes=["2016 sheet Bergel, matchups Eli Last (Club Eli)"],
-                checks=season_checks({2025: Title(2025, "Club Bergel", "Bergel Last", True)}),
             )
         bergel_row = engraved.split('class="plate-row"')[-1]
         assert "Club Bergel" in bergel_row and "Bergel" in bergel_row
         assert "plate-owner" in bergel_row
-        assert "2016 sheet Bergel, matchups Eli Last (Club Eli)" in engraved
-        assert "Walk check" in engraved
-        assert "Walk check" in page
-        assert "2025 — ESPN did not return this season" in page
-        with app.app_context():
-            missing = Title(
-                2013,
-                "",
-                "",
-                False,
-                walk="No bracket walk for this year.",
-                roster=(("Some Club", "Noah Last"),),
-            )
-            blank = render_template(
-                "history.html",
-                rings=ring_counts(),
-                seasons=season_views(),
-                titles={2013: missing},
-                checks=season_checks({2013: missing}),
-            )
-        assert "2013 — could not follow the bracket" in blank
-        assert "Some Club — Noah Last — not linked" in blank
-        assert 'data-label="Sheet">Henry' in blank
+        assert "Walk check" not in engraved
+        assert "ESPN did not return" not in page
         assert page.count('<details class="season"') == 15
         assert 'id="season-2025" open' in page
         assert 'id="season-2024" open' not in page

@@ -21,7 +21,7 @@ import pytz
 
 # Import local modules
 from config import Config
-from espn_history import load_titles, season_checks
+from espn_history import load_titles
 from league_history import SEASONS, ring_counts, season_views
 from nfl_utils import NFLSeasonHelper
 from constants import (
@@ -64,7 +64,6 @@ class FantasyTracker:
         self.game_clocks: Dict[str, Dict[str, Any]] = {}
         self.api_error: Optional[str] = None
         self.espn_titles: Dict[int, Any] = {}
-        self.espn_history_loading: bool = True
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
         
@@ -802,16 +801,11 @@ class FantasyTracker:
 
         @self.app.route('/history')
         def history() -> str:
-            titles = self.espn_titles
-            notes = [title.note for title in titles.values() if title.note]
             return render_template(
                 'history.html',
                 rings=ring_counts(),
                 seasons=season_views(),
-                titles=titles,
-                title_notes=notes,
-                checks=season_checks(titles, self.espn_history_loading),
-                history_loading=self.espn_history_loading,
+                titles=self.espn_titles,
             )
 
         @self.app.route('/manifest.webmanifest')
@@ -874,7 +868,6 @@ class FantasyTracker:
     def _load_espn_history(self) -> None:
         """Walk past seasons with the cookies already on this server."""
         if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
-            self.espn_history_loading = False
             return
         try:
             for season in SEASONS:
@@ -888,8 +881,6 @@ class FantasyTracker:
             logger.info("ESPN history loaded for %s seasons", len(self.espn_titles))
         except Exception as exc:
             logger.warning("ESPN history failed: %s", exc)
-        finally:
-            self.espn_history_loading = False
     
     def _render_dashboard(self) -> str:
         """Render dashboard with real-time SSE updates."""

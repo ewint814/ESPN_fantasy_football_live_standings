@@ -4,8 +4,8 @@ The running app already has the ESPN cookies. This asks each past season for
 its teams and weekly scores, then applies the bracket. A team name is engraved
 only when that result is the same person the sheet lists as champion.
 
-The history page also gets a place-by-place check: the walk's order, the
-sheet's order, and a note on each row where those are not the same person.
+The walk also orders every place, which is how the sheet's blank 2012-2018
+middle places were filled in.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from bracket import (
     winners_seeds,
     winners_six,
 )
-from league_history import SEASONS, Season, champion, ordinal, sheet_name_for
+from league_history import champion
 
 logger = logging.getLogger(__name__)
 
@@ -103,31 +103,6 @@ class WeekLine:
 
     label: str
     games: tuple[GameLine, ...]
-
-
-@dataclass(frozen=True)
-class CheckRow:
-    """One place, with the walk and the sheet side by side."""
-
-    label: str
-    walk: str
-    sheet: str
-    differs: bool
-    why: str
-
-
-@dataclass(frozen=True)
-class SeasonCheck:
-    """A year of the walk check."""
-
-    year: int
-    summary: str
-    differs: int
-    walk_line: str
-    rows: tuple[CheckRow, ...]
-    roster: tuple[tuple[str, str, str], ...]
-    seeds: tuple[SeedLine, ...] = ()
-    weeks: tuple[WeekLine, ...] = ()
 
 
 def owner_name(owners: list[dict[str, Any]]) -> str:
@@ -214,179 +189,6 @@ def read_season(
         return Title(year, "", "", False, walk=detail, roster=roster, seeds=seeds, weeks=weeks)
     return Title(
         year, matched[0], matched[1], True, walk=detail, roster=roster, seeds=seeds, weeks=weeks
-    )
-
-
-def season_checks(titles: dict[int, Title], loading: bool = False) -> tuple[SeasonCheck, ...]:
-    """Walk places beside the sheet for every season, newest first."""
-    return tuple(_check_season(season, titles.get(season.year), loading) for season in SEASONS)
-
-
-def _check_season(season: Season, title: Title | None, loading: bool = False) -> SeasonCheck:
-    if title is None and loading:
-        rows = tuple(
-            CheckRow(ordinal(index), "—", name, False, "")
-            for index, name in enumerate(season.places, start=1)
-            if name
-        )
-        return SeasonCheck(
-            season.year,
-            f"{season.year} — still loading from ESPN",
-            0,
-            "Still loading this season from ESPN. Refresh in a minute.",
-            rows,
-            (),
-        )
-    if title is None:
-        rows = tuple(
-            CheckRow(ordinal(index), "—", name, True, "ESPN did not return this season.")
-            for index, name in enumerate(season.places, start=1)
-            if name
-        )
-        line = "ESPN did not return this season."
-        return SeasonCheck(
-            season.year,
-            f"{season.year} — ESPN did not return this season",
-            len(rows),
-            line,
-            rows,
-            (),
-        )
-    rows = _check_rows(season.places, title)
-    count = sum(1 for row in rows if row.differs)
-    if title.places or title.pairs:
-        if count:
-            word = "difference" if count == 1 else "differences"
-            summary = f"{season.year} — {count} {word}"
-        else:
-            summary = f"{season.year} — walk matches the sheet"
-    else:
-        summary = f"{season.year} — could not follow the bracket"
-    roster = tuple(
-        (team, owner, sheet_name_for(owner) or "not linked") for team, owner in title.roster
-    )
-    return SeasonCheck(
-        season.year,
-        summary,
-        count,
-        title.walk or "No walk detail.",
-        rows,
-        roster,
-        title.seeds,
-        title.weeks,
-    )
-
-
-def _check_rows(sheet: tuple[str | None, ...], title: Title) -> tuple[CheckRow, ...]:
-    notes = dict(title.place_notes)
-    placed = {place: (team, owner) for place, team, owner in title.places}
-    pair_at = {start: (end, people, reason) for start, end, people, reason in title.pairs}
-    inside_pair: set[int] = set()
-    for start, end, _people, _reason in title.pairs:
-        inside_pair.update(range(start, end + 1))
-    last = len(sheet)
-    if placed:
-        last = max(last, max(placed))
-    if title.pairs:
-        last = max(last, max(end for _start, end, _people, _reason in title.pairs))
-    rows: list[CheckRow] = []
-    place = 1
-    while place <= last:
-        if place in pair_at:
-            end, people, reason = pair_at[place]
-            rows.append(_pair_row(sheet, place, end, people, reason))
-            place = end + 1
-            continue
-        if place in inside_pair:
-            place += 1
-            continue
-        sheet_name = sheet[place - 1] if place <= len(sheet) else None
-        row = _one_row(place, sheet_name, placed.get(place), notes.get(place, ""))
-        if row is not None:
-            rows.append(row)
-        place += 1
-    return tuple(rows)
-
-
-def _one_row(
-    place: int,
-    sheet_name: str | None,
-    walk: tuple[str, str] | None,
-    note: str,
-) -> CheckRow | None:
-    label = ordinal(place)
-    sheet_cell = sheet_name or "blank"
-    if walk is None:
-        if sheet_name is None:
-            return None
-        return CheckRow(label, "—", sheet_cell, True, "The walk did not assign this place.")
-    team, owner = walk
-    nick = sheet_name_for(owner)
-    walk_cell = f"{nick} — {team}" if nick else f"{owner} — {team}"
-    if nick is None:
-        why = f"ESPN lists {owner} here, and that spelling is not linked to a sheet nickname."
-        if sheet_name:
-            why += f" The sheet has {sheet_name}."
-        else:
-            why += " The sheet left this place blank."
-        return CheckRow(label, walk_cell, sheet_cell, True, why)
-    if sheet_name is None:
-        extra = f" {note}" if note else ""
-        return CheckRow(
-            label, walk_cell, sheet_cell, True, f"The sheet left this place blank.{extra}"
-        )
-    if nick == sheet_name:
-        return CheckRow(label, walk_cell, sheet_cell, False, "")
-    prefix = f"{note} " if note else ""
-    return CheckRow(label, walk_cell, sheet_cell, True, f"{prefix}The sheet has {sheet_name}.")
-
-
-def _pair_row(
-    sheet: tuple[str | None, ...],
-    start: int,
-    end: int,
-    people: tuple[tuple[str, str], tuple[str, str]],
-    reason: str,
-) -> CheckRow:
-    labels: list[str] = []
-    nicks: list[str] = []
-    unlinked = False
-    for team, owner in people:
-        nick = sheet_name_for(owner)
-        if nick:
-            labels.append(f"{nick} — {team}")
-            nicks.append(nick)
-        else:
-            labels.append(f"{owner} — {team}")
-            unlinked = True
-    slots = list(sheet[start - 1 : end])
-    named = [name for name in slots if name]
-    sheet_cell = ", ".join(named) if named else "blank"
-    label = ordinal(start) if start == end else f"{ordinal(start)}–{ordinal(end)}"
-    if unlinked:
-        return CheckRow(
-            label,
-            " or ".join(labels),
-            sheet_cell,
-            True,
-            f"{reason} One of these ESPN names is not linked to a sheet nickname.",
-        )
-    same_people = set(nicks) == set(named) and len(nicks) == len(named)
-    if same_people and len(slots) == len(named):
-        ordered = " then ".join(named)
-        return CheckRow(
-            label,
-            " or ".join(labels),
-            sheet_cell,
-            True,
-            f"{reason} The sheet lists {ordered}.",
-        )
-    return CheckRow(
-        label,
-        " or ".join(labels),
-        sheet_cell,
-        True,
-        f"{reason} The sheet has {sheet_cell}.",
     )
 
 

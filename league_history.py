@@ -1,12 +1,14 @@
 """Final places from the league sheet.
 
 The sheet is the record of who finished where. ESPN's default final
-rankings do not match this league's losers' bracket, so this page does
-not derive places from ESPN.
+rankings do not match this league's losers' bracket, so they are not used.
 
-2012 through 2018 leave most middle places blank. 2016 lists Bergel in
-1st and in 10th, and that is how the sheet reads. A Harry cell sits in
-the 2011 column with no place next to it, so it is not a finish.
+The sheet left most middle places blank for 2012 through 2018. Those
+come from replaying each year's playoff bracket with ESPN's scores, and
+Eli checked them. The sheet had Bergel in both 1st and 10th for 2016; the
+replay puts Yossi 10th. 2014 keeps the sheet's Jared in 10th, so 8th and
+9th stay blank until that year is settled. A Harry cell sits in the 2011
+column with no place next to it, so it is not a finish.
 """
 
 from dataclasses import dataclass
@@ -164,19 +166,29 @@ SEASONS: tuple[Season, ...] = (
     Season(
         2019, ("Joe", "Eli", "Noach", "Noam", "Yoni", "Henry", "Harry", "Wechs", "Bergel", "Yossi")
     ),
-    Season(2018, ("Wechs", "Noach", "Henry", "Joe", None, None, None, None, None, "Yoni")),
-    Season(2017, ("Joe", "Yossi", "Henry", "Harry", None, None, None, None, None, "Bergel")),
-    Season(2016, ("Bergel", "Joe", "Henry", "Yoni", None, None, None, None, None, "Bergel")),
     Season(
-        2015, ("Eli", "Ezra", "Harry", "Yoni", None, None, None, None, None, "Noam"), ("Yossi",)
+        2018, ("Wechs", "Noach", "Henry", "Joe", "Eli", "Harry", "Noam", "Yossi", "Bergel", "Yoni")
     ),
-    Season(2014, ("Noach", "Ezra", "Henry", "Harry", None, None, None, None, None, "Jared")),
     Season(
-        2013, ("Henry", "Yoni", "Wechs", "Ezra", None, None, None, None, None, "Eli"), ("Jared",)
+        2017, ("Joe", "Yossi", "Henry", "Harry", "Wechs", "Eli", "Yoni", "Noach", "Noam", "Bergel")
+    ),
+    Season(
+        2016, ("Bergel", "Joe", "Henry", "Yoni", "Eli", "Noam", "Wechs", "Noach", "Harry", "Yossi")
+    ),
+    Season(
+        2015,
+        ("Eli", "Ezra", "Harry", "Yoni", "Yossi", "Noach", "Joe", "Henry", "Wechs", "Noam"),
+        ("Yossi",),
+    ),
+    Season(2014, ("Noach", "Ezra", "Henry", "Harry", "Yoni", "Noam", "Wechs", None, None, "Jared")),
+    Season(
+        2013,
+        ("Henry", "Yoni", "Wechs", "Ezra", "Jared", "Joe", "Harry", "Noach", "Noam", "Eli"),
+        ("Jared",),
     ),
     Season(
         2012,
-        ("Eli", "Joe", "Noach", "Harry", None, None, None, None, None, "Tuvia"),
+        ("Eli", "Joe", "Noach", "Harry", "Yoni", "Noam", "Ezra", "Wechs", "Henry", "Tuvia"),
         ("Wechs", "Henry", "Ezra"),
     ),
     Season(2011, ("Eli", "Austin", "Yoni", "Noam", "Joe", "Tuvia", "Noach", "Goggles")),

@@ -6,7 +6,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bracket import Club, Game, losers_six, owner_matches, winners_seeds
-from espn_history import Title, read_season, season_checks
+from espn_history import read_season
 from league_history import sheet_name_for
 
 
@@ -254,14 +254,6 @@ def test_two_week_rounds_without_single_weeks_say_so() -> None:
     assert "did not send the single weeks" in title.walk
 
 
-def test_seasons_still_loading_do_not_say_espn_failed() -> None:
-    checks = season_checks({}, loading=True)
-    assert all("still loading" in check.summary for check in checks)
-    assert all(check.differs == 0 for check in checks)
-    finished = season_checks({})
-    assert all("did not return" in check.summary for check in finished)
-
-
 def test_missing_name_still_lists_espn_owners() -> None:
     title = read_season(twelve_team_season(), 2014, "Goggles")
     assert title is not None
@@ -319,74 +311,6 @@ def test_missing_game_names_the_seeds() -> None:
     assert "Henry (Club 3)" in title.walk
     assert "Noach (Club 6)" in title.walk
     assert "They did not play" in title.walk
-
-
-def test_check_marks_a_swap_and_an_unordered_pair() -> None:
-    title = Title(
-        2021,
-        "Party",
-        "Yoni Klausner",
-        True,
-        walk="Bracket champion: Yoni (Party).",
-        places=(
-            (1, "Party", "Yoni Klausner"),
-            (2, "Storm", "Eli Winton"),
-            (9, "Chronic", "YE V"),
-            (10, "Floop", "Jake Bergel"),
-        ),
-        place_notes=(
-            (
-                9,
-                "Lost the middle-round game on the winners' side of the losers' bracket to Elisha.",
-            ),
-            (
-                10,
-                "Won the middle-round game on the losers' side of the losers' bracket against Harry.",
-            ),
-        ),
-        pairs=(
-            (
-                5,
-                6,
-                (("Jackie", "Noah Bressler"), ("Percolators", "Joseph Solomont")),
-                "These two lost in the first round and did not play each other, "
-                "so the walk does not rank one above the other.",
-            ),
-        ),
-    )
-    check = next(item for item in season_checks({2021: title}) if item.year == 2021)
-    by_label = {row.label: row for row in check.rows}
-    assert by_label["1st"].differs is False
-    assert by_label["1st"].walk.startswith("Yoni")
-    fifth = by_label["5th–6th"]
-    assert fifth.differs
-    assert "Noach" in fifth.walk and "Joe" in fifth.walk
-    assert fifth.sheet == "Noach, Joe"
-    assert "did not play each other" in fifth.why
-    assert "The sheet lists Noach then Joe." in fifth.why
-    ninth = by_label["9th"]
-    assert ninth.differs
-    assert ninth.walk.startswith("Yossi")
-    assert ninth.sheet == "Bergel"
-    assert "The sheet has Bergel." in ninth.why
-    assert by_label["10th"].sheet == "Yossi"
-    assert by_label["10th"].walk.startswith("Bergel")
-
-
-def test_matching_places_are_not_differences() -> None:
-    names = ("Eli", "Austin", "Yoni", "Noam", "Joe", "Tuvia", "Noach", "Goggles")
-    title = Title(
-        2011,
-        "Team Winton",
-        "Eli",
-        True,
-        walk="Bracket champion: Eli.",
-        places=tuple((index, f"Club {name}", name) for index, name in enumerate(names, start=1)),
-    )
-    check = next(item for item in season_checks({2011: title}) if item.year == 2011)
-    assert check.differs == 0
-    assert check.summary == "2011 — walk matches the sheet"
-    assert all(row.differs is False for row in check.rows)
 
 
 def test_top_six_score_adds_a_win_and_the_bottom_six_a_loss() -> None:
@@ -585,7 +509,6 @@ def main() -> None:
     test_fifth_place_is_the_two_week_total()
     test_two_week_rounds_walk_losers_from_single_weeks()
     test_two_week_rounds_without_single_weeks_say_so()
-    test_seasons_still_loading_do_not_say_espn_failed()
     test_walk_matches_the_sheet_champion()
     test_walk_disagreement_is_a_note()
     test_missing_name_still_lists_espn_owners()
@@ -598,8 +521,6 @@ def main() -> None:
     test_week_16_still_counts_before_2021()
     test_week_18_of_an_18_week_nfl_season_is_ignored()
     test_eight_team_year_says_the_bracket_is_unwritten()
-    test_check_marks_a_swap_and_an_unordered_pair()
-    test_matching_places_are_not_differences()
     print("bracket ok")
 
 

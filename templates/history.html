@@ -575,6 +575,9 @@
         <section class="debug" aria-label="Walk check">
             <h2>Walk check</h2>
             <p class="note">Each year shows the regular season, the playoff games, then the places next to the sheet. A shaded place is one they do not agree on.</p>
+            {% if history_loading %}
+            <p class="note loading-note">Still loading seasons from ESPN. This takes about a minute after the site wakes up. Refresh to see the rest.</p>
+            {% endif %}
             <details class="rules">
                 <summary>Rules the walk uses</summary>
                 <ul>

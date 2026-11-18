@@ -43,6 +43,15 @@ class Game:
     away_score: float
 
 
+@dataclass(frozen=True)
+class BracketGame:
+    """A playoff game the walk used, with its side and round."""
+
+    side: str  # "winners" or "losers"
+    label: str
+    game: Game
+
+
 def owner_matches(owner: str, sheet_name: str) -> bool:
     """True when an ESPN owner name is the same person as a sheet nickname."""
     return sheet_name_for(owner) == sheet_name
@@ -159,7 +168,10 @@ def semifinal_opponents(
 
 
 def winners_six(
-    seeds: list[Club], rounds: list[list[Game]], reseed: bool = False
+    seeds: list[Club],
+    rounds: list[list[Game]],
+    reseed: bool = False,
+    played: list[BracketGame] | None = None,
 ) -> tuple[Club, Club, Club, Club] | None:
     """12-team winners' side. Seeds 1 and 2 bye. 3 plays 6, 4 plays 5.
 
@@ -189,6 +201,16 @@ def winners_six(
     final = game_between(rounds[2], finalist_one, finalist_two)
     if final is None or winner_id(final) is None:
         return None
+    if played is not None:
+        played.extend(
+            [
+                BracketGame("winners", "Round 1", low),
+                BracketGame("winners", "Round 1", high),
+                BracketGame("winners", "Semifinal", semi_one),
+                BracketGame("winners", "Semifinal", semi_two),
+                BracketGame("winners", "Final", final),
+            ]
+        )
     champion = _club(seeds, winner_id(final) or 0)
     runner = _club(seeds, loser_id(final) or 0)
     semi_one_loser = _club(seeds, loser_id(semi_one) or 0)
@@ -197,7 +219,9 @@ def winners_six(
 
 
 def winners_four(
-    seeds: list[Club], rounds: list[list[Game]]
+    seeds: list[Club],
+    rounds: list[list[Game]],
+    played: list[BracketGame] | None = None,
 ) -> tuple[Club, Club, Club, Club] | None:
     """Four-team winners' side. 1 vs 4, 2 vs 3, then the final and the 3rd-place game."""
     if len(seeds) != 4 or len(rounds) < 2:
@@ -219,6 +243,15 @@ def winners_four(
         return None
     if winner_id(final) is None or winner_id(third) is None:
         return None
+    if played is not None:
+        played.extend(
+            [
+                BracketGame("winners", "Semifinal", high),
+                BracketGame("winners", "Semifinal", low),
+                BracketGame("winners", "Final", final),
+                BracketGame("winners", "3rd place", third),
+            ]
+        )
     return (
         _club(seeds, winner_id(final) or 0),
         _club(seeds, loser_id(final) or 0),
@@ -231,6 +264,7 @@ def losers_six(
     seeds: list[Club],
     rounds: list[list[Game]],
     middle_place: str = "9th",
+    played: list[BracketGame] | None = None,
 ) -> list[Placed] | None:
     """Six-team losers' bracket, best place first.
 
@@ -284,6 +318,14 @@ def losers_six(
     sacko_winner = _club(seeds, winner_id(sacko) or 0)
     sacko_loser = _club(seeds, loser_id(sacko) or 0)
     ninth = game_between(rounds[2], middle_dropped.team_id, consolation_winner.team_id)
+    if played is not None:
+        played.extend(BracketGame("losers", "Round 1", game) for game in opening if game)
+        played.append(BracketGame("losers", "Round 2", middle_winners))
+        played.append(BracketGame("losers", "Round 2", middle_losers))
+        played.append(BracketGame("losers", "Losers' final", final))
+        if ninth is not None:
+            played.append(BracketGame("losers", f"{middle_place} place", ninth))
+        played.append(BracketGame("losers", "Sacko", sacko))
     if ninth is not None and winner_id(ninth) is not None:
         ninth_winner = _club(seeds, winner_id(ninth) or 0)
         ninth_loser = _club(seeds, loser_id(ninth) or 0)

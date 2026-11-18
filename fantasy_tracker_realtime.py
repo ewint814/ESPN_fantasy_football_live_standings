@@ -21,8 +21,9 @@ import pytz
 
 # Import local modules
 from config import Config
-from espn_history import load_titles
+from espn_history import dump_snapshot, load_season, load_snapshot
 from league_history import SEASONS, ring_counts, season_views
+from league_stats import stats_view
 from nfl_utils import NFLSeasonHelper
 from constants import (
     UPDATE_INTERVAL_ACTIVE_GAMES,
@@ -36,6 +37,9 @@ from constants import (
     NON_STARTER_SLOTS,
     PLAYOFF_CUTOFF,
 )
+
+# Finished seasons, saved from /history/data.json so they load without ESPN.
+SNAPSHOT_FILE = 'history_snapshot.json'
 
 # Load environment variables
 load_dotenv()
@@ -64,6 +68,7 @@ class FantasyTracker:
         self.game_clocks: Dict[str, Dict[str, Any]] = {}
         self.api_error: Optional[str] = None
         self.espn_titles: Dict[int, Any] = {}
+        self.espn_records: Dict[int, Any] = {}
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
         
@@ -805,6 +810,15 @@ class FantasyTracker:
                 rings=ring_counts(),
                 seasons=season_views(),
                 titles=self.espn_titles,
+                stats=stats_view(self.espn_records),
+                season_count=len(SEASONS),
+            )
+
+        @self.app.route('/history/data.json')
+        def history_data() -> Response:
+            return Response(
+                dump_snapshot(self.espn_titles, self.espn_records),
+                mimetype='application/json',
             )
 
         @self.app.route('/manifest.webmanifest')
@@ -865,19 +879,31 @@ class FantasyTracker:
             }), status_code
 
     def _load_espn_history(self) -> None:
-        """Walk past seasons with the cookies already on this server."""
+        """Past seasons from the saved snapshot, then ESPN for any year it lacks."""
+        snapshot = os.path.join(os.path.dirname(os.path.abspath(__file__)), SNAPSHOT_FILE)
+        if os.path.exists(snapshot):
+            try:
+                with open(snapshot, encoding='utf-8') as handle:
+                    self.espn_titles, self.espn_records = load_snapshot(handle.read())
+            except Exception as exc:
+                logger.warning("History snapshot failed: %s", exc)
         if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
             return
         try:
             for season in SEASONS:
-                found = load_titles(
+                if season.year in self.espn_records:
+                    continue
+                title, record = load_season(
                     int(self.config.espn_league_id),
                     self.config.espn_s2,
                     self.config.espn_swid,
-                    [season.year],
+                    season.year,
                 )
-                self.espn_titles = {**self.espn_titles, **found}
-            logger.info("ESPN history loaded for %s seasons", len(self.espn_titles))
+                if title is not None:
+                    self.espn_titles = {**self.espn_titles, season.year: title}
+                if record is not None:
+                    self.espn_records = {**self.espn_records, season.year: record}
+            logger.info("ESPN history loaded for %s seasons", len(self.espn_records))
         except Exception as exc:
             logger.warning("ESPN history failed: %s", exc)
     

@@ -1,6 +1,10 @@
 """Unit tests for live/overtime game classification (no ESPN credentials)."""
 
+import os
+import sys
 from types import SimpleNamespace
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fantasy_tracker_realtime import FantasyTracker
 
@@ -222,3 +226,10 @@ def test_ir_and_bench_slots_are_not_starters():
     assert tracker._is_starter_slot(SimpleNamespace(slot_position='BE')) is False
     assert tracker._is_starter_slot(SimpleNamespace(slot_position='QB')) is True
     assert tracker._is_starter_slot(SimpleNamespace(slot_position='FLEX')) is True
+
+
+if __name__ == "__main__":
+    for _name, _test in list(globals().items()):
+        if _name.startswith("test_") and callable(_test):
+            _test()
+    print(f"{os.path.basename(__file__)} ok")

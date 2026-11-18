@@ -1,10 +1,13 @@
 """Visit log: device labels, password gate, and which events are stored."""
 
 import os
+import sys
 import tempfile
 
 import pytz
 from flask import Flask
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from visit_log import VisitLog, accepted_event, device_label, passwords_match, register_visit_routes
 
@@ -97,3 +100,10 @@ def test_log_keeps_only_the_newest_lines() -> None:
         lines = log.lines()
         assert len(lines) == 3
         assert lines[0].endswith("| Desktop")
+
+
+if __name__ == "__main__":
+    for _name, _test in list(globals().items()):
+        if _name.startswith("test_") and callable(_test):
+            _test()
+    print(f"{os.path.basename(__file__)} ok")

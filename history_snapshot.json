@@ -15414,44 +15414,20 @@
      "label": "Week 14"
     },
     {
-     "away": 11,
-     "away_score": 112.9,
-     "home": 1,
-     "home_score": 127.82,
-     "kind": "winners",
-     "label": "Week 15"
-    },
-    {
-     "away": 4,
-     "away_score": 112.66,
-     "home": 2,
-     "home_score": 117.6,
-     "kind": "losers",
-     "label": "Week 15"
-    },
-    {
      "away": 6,
      "away_score": 146.1,
      "home": 3,
      "home_score": 123.54,
      "kind": "winners",
-     "label": "Week 15"
+     "label": "Round 1"
     },
     {
-     "away": 9,
-     "away_score": 109.84,
-     "home": 5,
-     "home_score": 115.02,
-     "kind": "losers",
-     "label": "Week 15"
-    },
-    {
-     "away": 12,
-     "away_score": 98.12,
-     "home": 10,
-     "home_score": 153.68,
-     "kind": "losers",
-     "label": "Week 15"
+     "away": 11,
+     "away_score": 112.9,
+     "home": 1,
+     "home_score": 127.82,
+     "kind": "winners",
+     "label": "Round 1"
     },
     {
      "away": 8,
@@ -15459,39 +15435,7 @@
      "home": 1,
      "home_score": 138.82,
      "kind": "winners",
-     "label": "Week 16"
-    },
-    {
-     "away": 10,
-     "away_score": 103.24,
-     "home": 2,
-     "home_score": 119.86,
-     "kind": "losers",
-     "label": "Week 16"
-    },
-    {
-     "away": 11,
-     "away_score": 103.0,
-     "home": 3,
-     "home_score": 95.56,
-     "kind": "winners",
-     "label": "Week 16"
-    },
-    {
-     "away": 12,
-     "away_score": 81.6,
-     "home": 4,
-     "home_score": 113.0,
-     "kind": "losers",
-     "label": "Week 16"
-    },
-    {
-     "away": 9,
-     "away_score": 110.18,
-     "home": 5,
-     "home_score": 122.96,
-     "kind": "losers",
-     "label": "Week 16"
+     "label": "Semifinal"
     },
     {
      "away": 7,
@@ -15499,7 +15443,7 @@
      "home": 6,
      "home_score": 100.72,
      "kind": "winners",
-     "label": "Week 16"
+     "label": "Semifinal"
     },
     {
      "away": 7,
@@ -15507,31 +15451,7 @@
      "home": 1,
      "home_score": 95.26,
      "kind": "winners",
-     "label": "Week 17"
-    },
-    {
-     "away": 5,
-     "away_score": 77.78,
-     "home": 2,
-     "home_score": 88.9,
-     "kind": "losers",
-     "label": "Week 17"
-    },
-    {
-     "away": 11,
-     "away_score": 66.5,
-     "home": 3,
-     "home_score": 132.22,
-     "kind": "winners",
-     "label": "Week 17"
-    },
-    {
-     "away": 9,
-     "away_score": 90.68,
-     "home": 4,
-     "home_score": 46.3,
-     "kind": "losers",
-     "label": "Week 17"
+     "label": "Final"
     },
     {
      "away": 8,
@@ -15539,15 +15459,71 @@
      "home": 6,
      "home_score": 66.14,
      "kind": "winners",
-     "label": "Week 17"
+     "label": "3rd place"
+    },
+    {
+     "away": 11,
+     "away_score": 169.5,
+     "home": 3,
+     "home_score": 227.78,
+     "kind": "winners",
+     "label": "5th place (2 weeks)"
+    },
+    {
+     "away": 12,
+     "away_score": 98.12,
+     "home": 10,
+     "home_score": 153.68,
+     "kind": "losers",
+     "label": "Round 1"
+    },
+    {
+     "away": 9,
+     "away_score": 109.84,
+     "home": 5,
+     "home_score": 115.02,
+     "kind": "losers",
+     "label": "Round 1"
+    },
+    {
+     "away": 4,
+     "away_score": 112.66,
+     "home": 2,
+     "home_score": 117.6,
+     "kind": "losers",
+     "label": "Round 1"
+    },
+    {
+     "away": 10,
+     "away_score": 103.24,
+     "home": 2,
+     "home_score": 119.86,
+     "kind": "losers",
+     "label": "Round 2"
+    },
+    {
+     "away": 12,
+     "away_score": 81.6,
+     "home": 4,
+     "home_score": 113.0,
+     "kind": "losers",
+     "label": "Round 2"
+    },
+    {
+     "away": 5,
+     "away_score": 77.78,
+     "home": 2,
+     "home_score": 88.9,
+     "kind": "losers",
+     "label": "Losers' final"
     },
     {
      "away": 12,
      "away_score": 135.68,
-     "home": 10,
-     "home_score": 131.48,
+     "home": 9,
+     "home_score": 90.68,
      "kind": "losers",
-     "label": "Week 17"
+     "label": "Sacko (by score)"
     }
    ],
    "teams": [
@@ -16422,8 +16398,118 @@
    "agrees": true,
    "owner": "jake h",
    "pairs": [],
-   "place_notes": [],
-   "places": [],
+   "place_notes": [
+    [
+     1,
+     "Won the final against Eli (Enflamed Pancreases)."
+    ],
+    [
+     2,
+     "Lost the final to Henry (I traded Mahomes+saquon)."
+    ],
+    [
+     3,
+     "Won the third-place game against Noach (Jackie Wack)."
+    ],
+    [
+     4,
+     "Lost the third-place game to Bergel (Team floop)."
+    ],
+    [
+     5,
+     "Won the two-week 5th-place game against Josh (BALDYS BREAKDONS), 227.8 to 169.5."
+    ],
+    [
+     6,
+     "Lost the two-week 5th-place game to Joe (Coach JoFro), 169.5 to 227.8."
+    ],
+    [
+     7,
+     "Won the losers' final against Yossi (Armed Robinson)."
+    ],
+    [
+     8,
+     "Lost the losers' final to Noam (Shanyone have  An open house?)."
+    ],
+    [
+     9,
+     "Lost the middle-round game on the winners' side of the losers' bracket to Noam (Shanyone have  An open house?)."
+    ],
+    [
+     10,
+     "Won the middle-round game on the losers' side of the losers' bracket against Elisha (Picks come 1st @anna\ud83d\udc10)."
+    ],
+    [
+     11,
+     "Won the Sacko game against Harry (Team Kosowsky)."
+    ],
+    [
+     12,
+     "Lost the Sacko game to Elisha (Picks come 1st @anna\ud83d\udc10)."
+    ]
+   ],
+   "places": [
+    [
+     1,
+     "I traded Mahomes+saquon",
+     "Henry Last"
+    ],
+    [
+     2,
+     "Enflamed Pancreases",
+     "Eli Last"
+    ],
+    [
+     3,
+     "Team floop",
+     "Bergel Last"
+    ],
+    [
+     4,
+     "Jackie Wack",
+     "Noach Last"
+    ],
+    [
+     5,
+     "Coach JoFro",
+     "Joe Last"
+    ],
+    [
+     6,
+     "BALDYS BREAKDONS",
+     "Josh Last"
+    ],
+    [
+     7,
+     "Shanyone have  An open house?",
+     "Noam Last"
+    ],
+    [
+     8,
+     "Armed Robinson",
+     "Yossi Last"
+    ],
+    [
+     9,
+     "Shira Movsits On My Face",
+     "Wechs Last"
+    ],
+    [
+     10,
+     "PartyLikeA GronkStar",
+     "Yoni Last"
+    ],
+    [
+     11,
+     "Picks come 1st @anna\ud83d\udc10",
+     "Elisha Last"
+    ],
+    [
+     12,
+     "Team Kosowsky",
+     "Harry Last"
+    ]
+   ],
    "team_name": "I traded Mahomes+saquon",
    "year": 2022
   },

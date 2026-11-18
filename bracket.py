@@ -94,6 +94,30 @@ def game_between(games: list[Game], first: int, second: int) -> Game | None:
     return None
 
 
+def score_off(games: list[Game], first: int, second: int) -> Game | None:
+    """Their game, or their scores from the week when ESPN paired them with others.
+
+    The league settles a bracket game by score even when ESPN's consolation
+    schedule put the two teams in different matchups (2022's Sacko).
+    """
+    game = game_between(games, first, second)
+    if game is not None:
+        return game
+    scores: dict[int, float] = {}
+    for other in games:
+        scores.setdefault(other.home_id, other.home_score)
+        scores.setdefault(other.away_id, other.away_score)
+    if first not in scores or second not in scores:
+        return None
+    return Game(first, second, scores[first], scores[second])
+
+
+def _scored(label: str, game: Game, games: list[Game]) -> str:
+    if game_between(games, game.home_id, game.away_id) is game:
+        return label
+    return f"{label} (by score)"
+
+
 def combine_weeks(first: list[Game], second: list[Game]) -> list[Game] | None:
     """Add a second week onto the same pairings. None when the pairings differ."""
     totals: list[Game] = []
@@ -303,8 +327,8 @@ def losers_six(
         return None
     if winner_id(middle_winners) is None or winner_id(middle_losers) is None:
         return None
-    final = game_between(rounds[2], bye.team_id, winner_id(middle_winners) or 0)
-    sacko = game_between(rounds[2], sacko_bye.team_id, loser_id(middle_losers) or 0)
+    final = score_off(rounds[2], bye.team_id, winner_id(middle_winners) or 0)
+    sacko = score_off(rounds[2], sacko_bye.team_id, loser_id(middle_losers) or 0)
     if final is None or sacko is None:
         return None
     if winner_id(final) is None or winner_id(sacko) is None:
@@ -322,10 +346,10 @@ def losers_six(
         played.extend(BracketGame("losers", "Round 1", game) for game in opening if game)
         played.append(BracketGame("losers", "Round 2", middle_winners))
         played.append(BracketGame("losers", "Round 2", middle_losers))
-        played.append(BracketGame("losers", "Losers' final", final))
+        played.append(BracketGame("losers", _scored("Losers' final", final, rounds[2]), final))
         if ninth is not None:
             played.append(BracketGame("losers", f"{middle_place} place", ninth))
-        played.append(BracketGame("losers", "Sacko", sacko))
+        played.append(BracketGame("losers", _scored("Sacko", sacko, rounds[2]), sacko))
     if ninth is not None and winner_id(ninth) is not None:
         ninth_winner = _club(seeds, winner_id(ninth) or 0)
         ninth_loser = _club(seeds, loser_id(ninth) or 0)

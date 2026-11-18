@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from bracket import Club, Game, losers_six, owner_matches, winners_seeds
+from bracket import BracketGame, Club, Game, losers_six, owner_matches, winners_seeds
 from espn_history import _clubs, _played_weeks, read_season
 from league_history import sheet_name_for
 
@@ -148,6 +148,22 @@ def test_losers_order() -> None:
     assert places is not None
     assert [place.club.team_id for place in places] == [7, 8, 9, 10, 11, 12]
     assert "Sacko" in places[-1].reason
+
+
+def test_sacko_by_score_when_espn_paired_others() -> None:
+    owners = ["Wechs", "Harry", "Josh", "Elisha", "Noam", "Yossi"]
+    seeds = [Club(index + 7, f"Club {index + 7}", owners[index], 0, 0) for index in range(6)]
+    opening = [Game(7, 12, 40, 10), Game(8, 11, 40, 10), Game(9, 10, 40, 10)]
+    middle = [Game(8, 9, 30, 10), Game(10, 11, 30, 10)]
+    # 2022: ESPN put the Sacko teams (11, 12) against 10 and 9.
+    last = [Game(7, 8, 40, 10), Game(11, 9, 50, 60), Game(12, 10, 20, 30)]
+    played: list[BracketGame] = []
+    places = losers_six(seeds, [opening, middle, last], played=played)
+    assert places is not None
+    assert [place.club.team_id for place in places][-2:] == [11, 12]
+    assert "Sacko" in places[-1].reason
+    labels = [item.label for item in played]
+    assert "Sacko (by score)" in labels and "Losers' final" in labels
 
 
 def test_ninth_place_game_orders_ninth_and_tenth() -> None:
@@ -472,6 +488,7 @@ def main() -> None:
     test_owner_token()
     test_points_seed_jumps_the_sixth()
     test_losers_order()
+    test_sacko_by_score_when_espn_paired_others()
     test_ninth_place_game_orders_ninth_and_tenth()
     test_fifth_place_is_the_two_week_total()
     test_two_week_rounds_walk_losers_from_single_weeks()

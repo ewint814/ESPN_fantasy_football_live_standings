@@ -254,6 +254,14 @@ def test_two_week_rounds_without_single_weeks_say_so() -> None:
     assert "did not send the single weeks" in title.walk
 
 
+def test_seasons_still_loading_do_not_say_espn_failed() -> None:
+    checks = season_checks({}, loading=True)
+    assert all("still loading" in check.summary for check in checks)
+    assert all(check.differs == 0 for check in checks)
+    finished = season_checks({})
+    assert all("did not return" in check.summary for check in finished)
+
+
 def test_missing_name_still_lists_espn_owners() -> None:
     title = read_season(twelve_team_season(), 2014, "Goggles")
     assert title is not None
@@ -577,6 +585,7 @@ def main() -> None:
     test_fifth_place_is_the_two_week_total()
     test_two_week_rounds_walk_losers_from_single_weeks()
     test_two_week_rounds_without_single_weeks_say_so()
+    test_seasons_still_loading_do_not_say_espn_failed()
     test_walk_matches_the_sheet_champion()
     test_walk_disagreement_is_a_note()
     test_missing_name_still_lists_espn_owners()

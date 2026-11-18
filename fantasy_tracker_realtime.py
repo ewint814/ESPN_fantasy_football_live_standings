@@ -64,6 +64,7 @@ class FantasyTracker:
         self.game_clocks: Dict[str, Dict[str, Any]] = {}
         self.api_error: Optional[str] = None
         self.espn_titles: Dict[int, Any] = {}
+        self.espn_history_loading: bool = True
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
         
@@ -809,7 +810,8 @@ class FantasyTracker:
                 seasons=season_views(),
                 titles=titles,
                 title_notes=notes,
-                checks=season_checks(titles),
+                checks=season_checks(titles, self.espn_history_loading),
+                history_loading=self.espn_history_loading,
             )
 
         @self.app.route('/manifest.webmanifest')
@@ -872,18 +874,22 @@ class FantasyTracker:
     def _load_espn_history(self) -> None:
         """Walk past seasons with the cookies already on this server."""
         if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
+            self.espn_history_loading = False
             return
-        years = [season.year for season in SEASONS]
         try:
-            self.espn_titles = load_titles(
-                int(self.config.espn_league_id),
-                self.config.espn_s2,
-                self.config.espn_swid,
-                years,
-            )
+            for season in SEASONS:
+                found = load_titles(
+                    int(self.config.espn_league_id),
+                    self.config.espn_s2,
+                    self.config.espn_swid,
+                    [season.year],
+                )
+                self.espn_titles = {**self.espn_titles, **found}
             logger.info("ESPN history loaded for %s seasons", len(self.espn_titles))
         except Exception as exc:
             logger.warning("ESPN history failed: %s", exc)
+        finally:
+            self.espn_history_loading = False
     
     def _render_dashboard(self) -> str:
         """Render dashboard with real-time SSE updates."""

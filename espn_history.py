@@ -217,12 +217,26 @@ def read_season(
     )
 
 
-def season_checks(titles: dict[int, Title]) -> tuple[SeasonCheck, ...]:
+def season_checks(titles: dict[int, Title], loading: bool = False) -> tuple[SeasonCheck, ...]:
     """Walk places beside the sheet for every season, newest first."""
-    return tuple(_check_season(season, titles.get(season.year)) for season in SEASONS)
+    return tuple(_check_season(season, titles.get(season.year), loading) for season in SEASONS)
 
 
-def _check_season(season: Season, title: Title | None) -> SeasonCheck:
+def _check_season(season: Season, title: Title | None, loading: bool = False) -> SeasonCheck:
+    if title is None and loading:
+        rows = tuple(
+            CheckRow(ordinal(index), "—", name, False, "")
+            for index, name in enumerate(season.places, start=1)
+            if name
+        )
+        return SeasonCheck(
+            season.year,
+            f"{season.year} — still loading from ESPN",
+            0,
+            "Still loading this season from ESPN. Refresh in a minute.",
+            rows,
+            (),
+        )
     if title is None:
         rows = tuple(
             CheckRow(ordinal(index), "—", name, True, "ESPN did not return this season.")

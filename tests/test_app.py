@@ -223,6 +223,26 @@ def test_history() -> bool:
         assert 'id="season-2024" open' not in page
         assert 'id="toggleSeasons"' in page
 
+        from espn_history import load_snapshot
+        from league_stats import stats_view
+
+        with open(os.path.join(root, "history_snapshot.json"), encoding="utf-8") as handle:
+            _, saved = load_snapshot(handle.read())
+        with app.app_context():
+            full = render_template(
+                "history.html",
+                rings=ring_counts(),
+                seasons=season_views(),
+                stats=stats_view(saved),
+                season_count=len(saved),
+            )
+        assert full.count('class="records-view"') == 12
+        assert full.count('class="records-view" data-size="all" data-kind="regular">') == 1
+        assert "Highest 2-week score" in full
+        assert 'class="record-top" hidden' in full
+        assert 'id="foesData"' in full and "Kryptonite" in full
+        assert full.count('class="toggle-btn') == 0
+
         dashboard = _render_scores(_sample_scores(12))
         assert dashboard.count('class="toggle-btn') == 2
         assert 'href="/history"' in dashboard

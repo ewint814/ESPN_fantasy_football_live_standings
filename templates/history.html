@@ -388,6 +388,7 @@
         .records {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+            grid-auto-flow: dense;
             gap: 10px;
         }
 
@@ -418,6 +419,141 @@
         .record-detail {
             color: #777;
             font-size: 0.84em;
+        }
+
+        .rec-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .rec-note {
+            margin: 8px 0 0;
+        }
+
+        .record {
+            min-width: 0;
+        }
+
+        .record.open {
+            grid-column: 1 / -1;
+        }
+
+        .record-btn {
+            display: block;
+            width: 100%;
+            font: inherit;
+            color: inherit;
+            text-align: left;
+            background: none;
+            border: none;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        .record-btn > span {
+            display: block;
+        }
+
+        .record-btn > .record-label {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .record.open .chevron {
+            transform: rotate(45deg);
+        }
+
+        .record-top {
+            list-style: none;
+            margin-top: 10px;
+            border-top: 1px solid #eee;
+            font-size: 0.9em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .record-top li {
+            display: grid;
+            grid-template-columns: 1.6em minmax(0, 1fr) auto;
+            gap: 10px;
+            align-items: baseline;
+            padding: 7px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .record-top li:last-child {
+            border-bottom: none;
+        }
+
+        .top-rank {
+            color: #888;
+            font-weight: 600;
+        }
+
+        .top-who {
+            font-weight: 600;
+            overflow-wrap: normal;
+            word-break: keep-all;
+        }
+
+        .top-score {
+            font-weight: 700;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .top-when {
+            display: block;
+            color: #777;
+            font-size: 0.86em;
+            font-weight: 400;
+        }
+
+        .foes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .foe {
+            border: 1px solid #e3e3e3;
+            border-radius: 4px;
+            background: #fafafa;
+            padding: 10px 12px;
+            min-width: 0;
+        }
+
+        .foe-name {
+            font-size: 1.25em;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .foe-edge {
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .foe.krypto .foe-edge { color: #c62828; }
+        .foe.easy .foe-edge { color: #2e7d32; }
+
+        .foe-detail {
+            color: #777;
+            font-size: 0.84em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .foes-all {
+            margin-bottom: 4px;
+        }
+
+        .foes-note {
+            font-size: 0.82em;
+            margin: 4px 0 12px;
         }
 
         .h2h {
@@ -657,6 +793,7 @@
             .plate-frame { padding: 14px 12px 10px; }
             .records { grid-template-columns: 1fr 1fr; }
             .record-value { font-size: 1.35em; }
+            .foes { grid-template-columns: minmax(0, 1fr); }
         }
     </style>
 </head>
@@ -757,16 +894,51 @@
         {% if stats and stats.records %}
         <section class="block" aria-label="Records">
             <div class="section-head"><h2>Records</h2></div>
-            <div class="records">
-                {% for item in stats.records %}
-                <div class="card record">
-                    <div class="record-label">{{ item.label }}</div>
-                    <div class="record-value">{{ item.value }}</div>
-                    <div class="record-who">{{ item.who }}</div>
-                    <div class="record-detail">{{ item.detail }}</div>
+            <div class="rec-controls">
+                <div class="chips" role="group" aria-label="League size">
+                    <button type="button" class="chip rec-chip" data-size="all" aria-pressed="true">All years</button>
+                    <button type="button" class="chip rec-chip" data-size="10" aria-pressed="false">10-team (2011–20)</button>
+                    <button type="button" class="chip rec-chip" data-size="12" aria-pressed="false">12-team (2021–25)</button>
                 </div>
-                {% endfor %}
+                <div class="chips" role="group" aria-label="Record games">
+                    <button type="button" class="chip rec-chip" data-kind="overall" aria-pressed="false">Overall</button>
+                    <button type="button" class="chip rec-chip" data-kind="regular" aria-pressed="true">Regular season</button>
+                    <button type="button" class="chip rec-chip" data-kind="winners" aria-pressed="false">Winners' bracket</button>
+                    <button type="button" class="chip rec-chip" data-kind="losers" aria-pressed="false">Losers' bracket</button>
+                </div>
             </div>
+            {% for size, kinds in stats.records_board.items() %}
+            {% for kind, view in kinds.items() %}
+            <div class="records-view" data-size="{{ size }}" data-kind="{{ kind }}"{% if not (size == "all" and kind == "regular") %} hidden{% endif %}>
+                {% if view.records %}
+                <div class="records">
+                    {% for item in view.records %}
+                    <div class="card record">
+                        <button type="button" class="record-btn" aria-expanded="false">
+                            <span class="record-label">{{ item.label }}<span class="chevron" aria-hidden="true"></span></span>
+                            <span class="record-value">{{ item.value }}</span>
+                            <span class="record-who">{{ item.who }}</span>
+                            <span class="record-detail">{{ item.detail }}</span>
+                        </button>
+                        <ol class="record-top" hidden>
+                            {% for entry in item.top %}
+                            <li>
+                                <span class="top-rank">{{ loop.index }}</span>
+                                <span class="top-who">{{ entry.who }}<span class="top-when">{{ entry.when }}</span></span>
+                                <span class="top-score">{{ entry.value }}{% if entry.score %}<span class="top-when">{{ entry.score }}</span>{% endif %}</span>
+                            </li>
+                            {% endfor %}
+                        </ol>
+                    </div>
+                    {% endfor %}
+                </div>
+                <p class="note rec-note">{% if view.note %}{{ view.note }} {% endif %}Tap a record for the top 5.</p>
+                {% else %}
+                <p class="h2h-empty">No games of this kind.</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% endfor %}
         </section>
         {% endif %}
 
@@ -780,6 +952,19 @@
                         <option value="{{ person }}">{{ person }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <div class="foes" id="foes" aria-live="polite" data-min-games="{{ stats.kryptonite_min_games }}"></div>
+                <details class="more foes-all" id="foesAll">
+                    <summary>Show all</summary>
+                    <div class="scroll-x">
+                        <table class="weeks foes-table">
+                            <thead><tr><th>Opponent</th><th class="num">Games</th><th class="num">Vs you</th><th class="num">Usual</th><th class="num">+/−</th></tr></thead>
+                            <tbody id="foesRows"></tbody>
+                        </table>
+                    </div>
+                </details>
+                <p class="note foes-note">Kryptonite: their score against you minus their own average that season, not counting that game. Regular season only, {{ stats.kryptonite_min_games }} or more games, so the buttons below don't change it.</p>
+                <div class="h2h-controls">
                     <div class="chips" role="group" aria-label="Games">
                         <button type="button" class="chip" data-kind="overall" aria-pressed="true">Overall</button>
                         <button type="button" class="chip" data-kind="regular" aria-pressed="false">Regular season</button>
@@ -791,6 +976,7 @@
                 <div id="h2hRows"></div>
             </div>
             <script type="application/json" id="h2hData">{{ stats.head_to_head | safe }}</script>
+            <script type="application/json" id="foesData">{{ stats.matchups | safe }}</script>
         </section>
         {% endif %}
 
@@ -928,11 +1114,121 @@
             });
         }
 
+        const recordViews = document.querySelectorAll(".records-view");
+        if (recordViews.length) {
+            const recChips = document.querySelectorAll(".rec-chip");
+            let recSize = "all";
+            let recKind = "regular";
+
+            function closeRecords() {
+                document.querySelectorAll(".record.open").forEach((card) => {
+                    card.classList.remove("open");
+                    card.querySelector(".record-btn").setAttribute("aria-expanded", "false");
+                    card.querySelector(".record-top").hidden = true;
+                });
+            }
+
+            function showRecords() {
+                closeRecords();
+                recordViews.forEach((view) => {
+                    view.hidden = view.dataset.size !== recSize || view.dataset.kind !== recKind;
+                });
+                recChips.forEach((chip) => {
+                    const on = chip.dataset.size ? chip.dataset.size === recSize : chip.dataset.kind === recKind;
+                    chip.setAttribute("aria-pressed", String(on));
+                });
+            }
+
+            recChips.forEach((chip) => {
+                chip.addEventListener("click", () => {
+                    if (chip.dataset.size) recSize = chip.dataset.size;
+                    if (chip.dataset.kind) recKind = chip.dataset.kind;
+                    showRecords();
+                });
+            });
+
+            document.querySelectorAll(".record-btn").forEach((button) => {
+                button.addEventListener("click", () => {
+                    const card = button.closest(".record");
+                    const opening = !card.classList.contains("open");
+                    closeRecords();
+                    if (!opening) return;
+                    card.classList.add("open");
+                    button.setAttribute("aria-expanded", "true");
+                    card.querySelector(".record-top").hidden = false;
+                });
+            });
+        }
+
         const h2hData = document.getElementById("h2hData");
         if (h2hData) {
             const board = JSON.parse(h2hData.textContent);
             const personSelect = document.getElementById("h2hPerson");
-            const chips = document.querySelectorAll(".chip");
+            const chips = document.querySelectorAll(".h2h .chip");
+            const foes = JSON.parse(document.getElementById("foesData").textContent);
+            const foesBox = document.getElementById("foes");
+            const foesAll = document.getElementById("foesAll");
+            const foesRows = document.getElementById("foesRows");
+            const minGames = foesBox.dataset.minGames;
+
+            function signed(value) {
+                if (value > 0) return `+${value.toFixed(1)}`;
+                if (value < 0) return `−${Math.abs(value).toFixed(1)}`;
+                return "0.0";
+            }
+
+            function foeCard(cls, title, row) {
+                const card = document.createElement("div");
+                card.className = `foe ${cls}`;
+                const label = document.createElement("div");
+                label.className = "record-label";
+                label.textContent = title;
+                const name = document.createElement("div");
+                name.className = "foe-name";
+                name.textContent = row.opponent;
+                const edge = document.createElement("div");
+                edge.className = "foe-edge";
+                edge.textContent = `${signed(row.edge)} a game`;
+                const detail = document.createElement("div");
+                detail.className = "foe-detail";
+                detail.textContent = `${row.against.toFixed(1)} against you, ${row.usual.toFixed(1)} usually · ${row.games} games`;
+                card.append(label, name, edge, detail);
+                return card;
+            }
+
+            function drawFoes() {
+                const rows = foes[personSelect.value] || [];
+                foesBox.replaceChildren();
+                foesRows.replaceChildren();
+                foesAll.hidden = rows.length < 2;
+                if (!rows.length) {
+                    const empty = document.createElement("p");
+                    empty.className = "h2h-empty";
+                    empty.textContent = `Not enough games yet for a kryptonite (${minGames} against one opponent).`;
+                    foesBox.appendChild(empty);
+                    return;
+                }
+                foesBox.appendChild(foeCard("krypto", "Kryptonite", rows[0]));
+                if (rows.length > 1) {
+                    foesBox.appendChild(foeCard("easy", "Easiest matchup", rows[rows.length - 1]));
+                }
+                rows.forEach((row) => {
+                    const tr = document.createElement("tr");
+                    [
+                        [row.opponent, ""],
+                        [String(row.games), "num"],
+                        [row.against.toFixed(1), "num"],
+                        [row.usual.toFixed(1), "num"],
+                        [signed(row.edge), "num"],
+                    ].forEach(([text, cls]) => {
+                        const td = document.createElement("td");
+                        td.textContent = text;
+                        if (cls) td.className = cls;
+                        tr.appendChild(td);
+                    });
+                    foesRows.appendChild(tr);
+                });
+            }
             const rowsBox = document.getElementById("h2hRows");
             const total = document.getElementById("h2hTotal");
             let kind = "overall";
@@ -986,7 +1282,11 @@
                 });
             }
 
-            personSelect.addEventListener("change", drawH2H);
+            personSelect.addEventListener("change", () => {
+                drawFoes();
+                drawH2H();
+            });
+            drawFoes();
             chips.forEach((chip) => {
                 chip.addEventListener("click", () => {
                     kind = chip.dataset.kind;

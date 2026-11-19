@@ -244,6 +244,26 @@ def careers(records: dict[int, SeasonRecord]) -> tuple[CareerRow, ...]:
 
 # --- records -------------------------------------------------------------
 
+TOP_COUNT = 5
+SIZES = ("all", "10", "12")
+# ESPN labels 2011's playoff games by week, but each one is two weeks added together.
+TWO_WEEK_PLAYOFF_YEARS = (2011,)
+
+
+@dataclass(frozen=True)
+class RecordEntry:
+    """One line of a record's top list. `score` is the game score for game records."""
+
+    value: str
+    who: str
+    year: int
+    label: str
+    score: str = ""
+
+    @property
+    def when(self) -> str:
+        return f"{self.year}, {self.label}" if self.label else str(self.year)
+
 
 @dataclass(frozen=True)
 class LeagueRecord:
@@ -251,86 +271,253 @@ class LeagueRecord:
     value: str
     who: str
     detail: str
+    top: tuple[RecordEntry, ...] = ()
+
+
+@dataclass(frozen=True)
+class RecordsView:
+    records: tuple[LeagueRecord, ...]
+    note: str
 
 
 def _score(value: float) -> str:
     return f"{value:.1f}"
 
 
+def _margin(value: float) -> str:
+    """Two decimals under a point, so a 0.04-point game doesn't read as 0.0."""
+    return f"{value:.2f}" if value < 1 else _score(value)
+
+
+def _size(record: SeasonRecord) -> str:
+    return "12" if len(record.teams) >= 12 else "10"
+
+
+def _is_two_week(year: int, game: GameRecord) -> bool:
+    if game.kind == "regular":
+        return False
+    return "(2 weeks)" in game.label or year in TWO_WEEK_PLAYOFF_YEARS
+
+
+def _game_label(year: int, game: GameRecord) -> str:
+    if game.kind == "regular" and game.label.startswith("Week "):
+        return f"week {game.label.split()[-1]}"
+    if _is_two_week(year, game) and "(2 weeks)" not in game.label:
+        return f"{game.label} (2 weeks)"
+    return game.label
+
+
+def _top(items: list[tuple[float, RecordEntry]], high: bool) -> tuple[RecordEntry, ...]:
+    """The best TOP_COUNT, plus anyone tied with the last of them. Earlier years first on ties."""
+    ordered = sorted(items, key=lambda item: -item[0] if high else item[0])
+    if len(ordered) <= TOP_COUNT:
+        return tuple(entry for _value, entry in ordered)
+    cutoff = ordered[TOP_COUNT - 1][0]
+    return tuple(
+        entry for value, entry in ordered if (value >= cutoff if high else value <= cutoff)
+    )
+
+
+def _card(label: str, top: tuple[RecordEntry, ...], game: bool = False) -> LeagueRecord:
+    first = top[0]
+    detail = f"{first.score}, {first.year} {first.label}" if game else first.when
+    return LeagueRecord(label, first.value, first.who, detail, top)
+
+
+def _records_for(records: list[SeasonRecord], kind: str) -> RecordsView:
+    played = [
+        (record, game)
+        for record in records
+        for game in record.games
+        if kind == "overall" or game.kind == kind
+    ]
+    two_week = [_is_two_week(record.year, game) for record, game in played]
+    all_two_week = bool(played) and all(two_week)
+    dropped = any(two_week) and not all_two_week
+    if dropped:
+        played = [pair for pair, longer in zip(played, two_week, strict=True) if not longer]
+
+    scores: list[tuple[float, RecordEntry]] = []
+    margins: list[tuple[float, RecordEntry]] = []
+    for record, game in played:
+        people = _people(record)
+        label = _game_label(record.year, game)
+        for team_id, score in ((game.home, game.home_score), (game.away, game.away_score)):
+            entry = RecordEntry(_score(score), people.get(team_id, "?"), record.year, label)
+            scores.append((round(score, 2), entry))
+        margin = round(abs(game.home_score - game.away_score), 2)
+        if margin == 0:
+            continue
+        home_won = game.home_score > game.away_score
+        winner, loser = (game.home, game.away) if home_won else (game.away, game.home)
+        high = max(game.home_score, game.away_score)
+        low = min(game.home_score, game.away_score)
+        margins.append(
+            (
+                margin,
+                RecordEntry(
+                    _margin(margin),
+                    f"{people.get(winner, '?')} over {people.get(loser, '?')}",
+                    record.year,
+                    label,
+                    f"{_score(high)}–{_score(low)}",
+                ),
+            )
+        )
+
+    prefix = "2-week " if all_two_week else ""
+    rows: list[LeagueRecord] = []
+    if scores:
+        week_word = "2-week score" if all_two_week else "week"
+        rows.append(_card(f"Highest {week_word}", _top(scores, high=True)))
+        rows.append(_card(f"Lowest {week_word}", _top(scores, high=False)))
+    if margins:
+        rows.append(_card(f"Biggest {prefix}blowout", _top(margins, high=True), game=True))
+        rows.append(_card(f"Closest {prefix}game", _top(margins, high=False), game=True))
+
+    with_seasons = kind in ("overall", "regular")
+    if with_seasons:
+        totals: list[tuple[float, RecordEntry]] = []
+        per_game: list[tuple[float, RecordEntry]] = []
+        for record in records:
+            weeks_played: dict[int, int] = defaultdict(int)
+            for week in record.weeks:
+                for team_id, _score_value in week.scores:
+                    weeks_played[team_id] += 1
+            for club in record.teams:
+                line = f"{club.wins}-{club.losses}" + (f"-{club.ties}" if club.ties else "")
+                total = round(club.points_for, 2)
+                totals.append(
+                    (total, RecordEntry(_score(total), club.person, record.year, line))
+                )
+                count = weeks_played.get(club.team_id, 0)
+                if count:
+                    average = round(club.points_for / count, 2)
+                    per_game.append(
+                        (
+                            average,
+                            RecordEntry(
+                                _score(average),
+                                club.person,
+                                record.year,
+                                f"{count} weeks, {total:,.1f} total",
+                            ),
+                        )
+                    )
+        if totals:
+            rows.append(_card("Most points in a season", _top(totals, high=True)))
+            rows.append(_card("Fewest points in a season", _top(totals, high=False)))
+        if per_game:
+            rows.append(_card("Most points per game", _top(per_game, high=True)))
+            rows.append(_card("Fewest points per game", _top(per_game, high=False)))
+
+    notes: list[str] = []
+    if dropped:
+        notes.append("Two-week playoff games are left out, so every score is one week.")
+    if all_two_week:
+        notes.append("Every game here is two weeks added together.")
+    if with_seasons and rows:
+        notes.append("Season totals are the regular season.")
+    return RecordsView(tuple(rows), " ".join(notes))
+
+
+def records_board(records: dict[int, SeasonRecord]) -> dict[str, dict[str, RecordsView]]:
+    """size ("all", "10", "12") -> kind -> records. 2011's eight teams count with the 10s."""
+    ordered = [records[year] for year in sorted(records)]
+    return {
+        size: {
+            kind: _records_for(
+                [record for record in ordered if size == "all" or _size(record) == size], kind
+            )
+            for kind in KINDS
+        }
+        for size in SIZES
+    }
+
+
 def league_records(records: dict[int, SeasonRecord]) -> tuple[LeagueRecord, ...]:
-    """Single-week and season bests, regular season only so every week is one week."""
-    weeks: list[tuple[float, str, int, int]] = []
-    games: list[tuple[float, str, str, float, float, int, int]] = []
-    seasons: list[tuple[float, str, int, str]] = []
+    """Every season's regular-season records."""
+    return records_board(records)["all"]["regular"].records
+
+
+# --- kryptonite ----------------------------------------------------------
+
+KRYPTONITE_MIN_GAMES = 8
+
+
+@dataclass(frozen=True)
+class Matchup:
+    """How one opponent scores against a person, next to how they scored otherwise."""
+
+    opponent: str
+    games: int
+    against: float
+    usual: float
+
+    @property
+    def edge(self) -> float:
+        return self.against - self.usual
+
+
+def matchups(records: dict[int, SeasonRecord]) -> dict[str, tuple[Matchup, ...]]:
+    """person -> opponents with at least KRYPTONITE_MIN_GAMES regular-season games, best first.
+
+    Each game compares the opponent's score with their average for the rest of that season.
+    """
+    games: dict[str, dict[str, list[tuple[float, float]]]] = defaultdict(lambda: defaultdict(list))
     for record in records.values():
         people = _people(record)
-        for week_scores in record.weeks:
-            for team_id, score in week_scores.scores:
-                weeks.append((score, people.get(team_id, "?"), record.year, week_scores.week))
-        for played in record.games:
-            if played.kind != "regular":
+        totals: dict[int, list[float]] = defaultdict(lambda: [0.0, 0.0])
+        for week in record.weeks:
+            for team_id, score in week.scores:
+                totals[team_id][0] += score
+                totals[team_id][1] += 1
+        for game in record.games:
+            if game.kind != "regular":
                 continue
-            home_won = played.home_score >= played.away_score
-            winner = played.home if home_won else played.away
-            loser = played.away if home_won else played.home
-            high = max(played.home_score, played.away_score)
-            low = min(played.home_score, played.away_score)
-            week_number = int(played.label.split()[-1]) if played.label.startswith("Week") else 0
-            games.append(
-                (
-                    high - low,
-                    people.get(winner, "?"),
-                    people.get(loser, "?"),
-                    high,
-                    low,
-                    record.year,
-                    week_number,
-                )
+            for me, them, their_score in (
+                (game.home, game.away, game.away_score),
+                (game.away, game.home, game.home_score),
+            ):
+                person = people.get(me)
+                opponent = people.get(them)
+                total, count = totals[them]
+                if not person or not opponent or person == opponent or count < 2:
+                    continue
+                usual = (total - their_score) / (count - 1)
+                games[person][opponent].append((their_score, usual))
+    board: dict[str, tuple[Matchup, ...]] = {}
+    for person, opponents in games.items():
+        rows = [
+            Matchup(
+                opponent,
+                len(pairs),
+                sum(score for score, _usual in pairs) / len(pairs),
+                sum(usual for _score, usual in pairs) / len(pairs),
             )
-        for club in record.teams:
-            line = f"{club.wins}-{club.losses}" + (f"-{club.ties}" if club.ties else "")
-            seasons.append((club.points_for, club.person, record.year, line))
-    rows: list[LeagueRecord] = []
-    if weeks:
-        best = max(weeks)
-        worst = min(weeks)
-        rows.append(
-            LeagueRecord("Highest week", _score(best[0]), best[1], f"{best[2]}, week {best[3]}")
-        )
-        rows.append(
-            LeagueRecord("Lowest week", _score(worst[0]), worst[1], f"{worst[2]}, week {worst[3]}")
-        )
-    decided = [game for game in games if game[0] > 0]
-    if decided:
-        blowout = max(decided)
-        closest = min(decided)
-        for label, entry in (("Biggest blowout", blowout), ("Closest game", closest)):
-            margin, won_by, lost_by, top, bottom, year, week_number = entry
-            rows.append(
-                LeagueRecord(
-                    label,
-                    _score(margin),
-                    f"{won_by} over {lost_by}",
-                    f"{_score(top)}–{_score(bottom)}, {year} week {week_number}",
-                )
-            )
-    if seasons:
-        most = max(seasons)
-        fewest = min(seasons)
-        rows.append(
-            LeagueRecord(
-                "Most points in a season", _score(most[0]), most[1], f"{most[2]}, {most[3]}"
-            )
-        )
-        rows.append(
-            LeagueRecord(
-                "Fewest points in a season",
-                _score(fewest[0]),
-                fewest[1],
-                f"{fewest[2]}, {fewest[3]}",
-            )
-        )
-    return tuple(rows)
+            for opponent, pairs in opponents.items()
+            if len(pairs) >= KRYPTONITE_MIN_GAMES
+        ]
+        if rows:
+            board[person] = tuple(sorted(rows, key=lambda row: (-row.edge, -row.games)))
+    return board
+
+
+def _matchups_json(board: dict[str, tuple[Matchup, ...]]) -> str:
+    data = {
+        person: [
+            {
+                "opponent": row.opponent,
+                "games": row.games,
+                "against": round(row.against, 1),
+                "usual": round(row.usual, 1),
+                "edge": round(row.edge, 1),
+            }
+            for row in rows
+        ]
+        for person, rows in board.items()
+    }
+    return json.dumps(data, sort_keys=True).replace("<", "\\u003c")
 
 
 # --- brackets ------------------------------------------------------------
@@ -392,6 +579,9 @@ class StatsView:
     people: tuple[str, ...]
     seasons: dict[int, SeasonExtras]
     loaded: int
+    records_board: dict[str, dict[str, RecordsView]]
+    matchups: str
+    kryptonite_min_games: int = KRYPTONITE_MIN_GAMES
 
 
 def stats_view(records: dict[int, SeasonRecord]) -> StatsView:
@@ -405,11 +595,14 @@ def stats_view(records: dict[int, SeasonRecord]) -> StatsView:
         )
         for year, record in records.items()
     }
+    by_view = records_board(records)
     return StatsView(
         careers(records),
-        league_records(records),
+        by_view["all"]["regular"].records,
         json.dumps(board, sort_keys=True).replace("<", "\\u003c"),
         people,
         extras,
         len(records),
+        by_view,
+        _matchups_json(matchups(records)),
     )

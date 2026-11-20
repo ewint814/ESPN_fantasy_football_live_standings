@@ -23,6 +23,7 @@ import pytz
 from config import Config
 from espn_history import dump_snapshot, load_season, load_snapshot
 from league_history import SEASONS, ring_counts, season_views
+from league_moves import dump_moves, load_moves, load_moves_snapshot, moves_view
 from league_stats import stats_view
 from nfl_utils import NFLSeasonHelper
 from constants import (
@@ -36,10 +37,13 @@ from constants import (
     RETRY_MAX_DELAY,
     NON_STARTER_SLOTS,
     PLAYOFF_CUTOFF,
+    MOVES_REFRESH_SECONDS,
 )
 
 # Finished seasons, saved from /history/data.json so they load without ESPN.
 SNAPSHOT_FILE = 'history_snapshot.json'
+# Finished seasons' moves, saved from /moves/data.json. The current season always comes from ESPN.
+MOVES_SNAPSHOT_FILE = 'moves_snapshot.json'
 
 # Load environment variables
 load_dotenv()
@@ -69,6 +73,8 @@ class FantasyTracker:
         self.api_error: Optional[str] = None
         self.espn_titles: Dict[int, Any] = {}
         self.espn_records: Dict[int, Any] = {}
+        self.espn_moves: Dict[int, Any] = {}
+        self.moves_loading: bool = True
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
         
@@ -100,7 +106,7 @@ class FantasyTracker:
         
         # Start aggressive background updates for real-time experience
         self._start_score_updates()
-        threading.Thread(target=self._load_espn_history, daemon=True).start()
+        threading.Thread(target=self._load_espn_history_then_moves, daemon=True).start()
     
     def _connect_to_espn(self) -> bool:
         """Connect to ESPN Fantasy Football API with timeout."""
@@ -821,6 +827,22 @@ class FantasyTracker:
                 mimetype='application/json',
             )
 
+        @self.app.route('/moves')
+        def moves() -> str:
+            return render_template(
+                'moves.html',
+                view=moves_view(self.espn_moves, self.espn_records),
+                loading=self.moves_loading,
+                nfl_year=self.nfl_year,
+            )
+
+        @self.app.route('/moves/data.json')
+        def moves_data() -> Response:
+            finished = {
+                year: season for year, season in self.espn_moves.items() if year < self.nfl_year
+            }
+            return Response(dump_moves(finished), mimetype='application/json')
+
         @self.app.route('/manifest.webmanifest')
         def manifest() -> Response:
             payload = {
@@ -877,6 +899,51 @@ class FantasyTracker:
                 'current_week': self.current_week,
                 'real_time': True
             }), status_code
+
+    def _load_espn_history_then_moves(self) -> None:
+        self._load_espn_history()
+        self._load_espn_moves()
+        while True:
+            time.sleep(MOVES_REFRESH_SECONDS)
+            self._load_moves_year(self.nfl_year)
+
+    def _load_moves_year(self, year: int) -> None:
+        if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
+            return
+        season = load_moves(
+            int(self.config.espn_league_id),
+            self.config.espn_s2,
+            self.config.espn_swid,
+            year,
+        )
+        if season is not None:
+            self.espn_moves = {**self.espn_moves, year: season}
+
+    def _load_espn_moves(self) -> None:
+        """Saved seasons first, then ESPN for the rest, oldest first, and this season last."""
+        snapshot = os.path.join(os.path.dirname(os.path.abspath(__file__)), MOVES_SNAPSHOT_FILE)
+        if os.path.exists(snapshot):
+            try:
+                with open(snapshot, encoding='utf-8') as handle:
+                    saved = load_moves_snapshot(handle.read())
+                self.espn_moves = {
+                    year: season for year, season in saved.items() if year < self.nfl_year
+                }
+            except Exception as exc:
+                logger.warning("Moves snapshot failed: %s", exc)
+        try:
+            if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
+                return
+            first = min(season.year for season in SEASONS)
+            for year in range(first, self.nfl_year + 1):
+                if year in self.espn_moves:
+                    continue
+                self._load_moves_year(year)
+            logger.info("ESPN moves loaded for %s seasons", len(self.espn_moves))
+        except Exception as exc:
+            logger.warning("ESPN moves failed: %s", exc)
+        finally:
+            self.moves_loading = False
 
     def _load_espn_history(self) -> None:
         """Past seasons from the saved snapshot, then ESPN for any year it lacks."""

@@ -1,14 +1,24 @@
 """Moves from ESPN: pickups, trades, season move counts, and points left on the bench.
 
-Every season is tried; ESPN's library says rosters and transactions start in
-2019, and the page shows what actually came back. Season move counts ride
-along with the team data; a season where every counter is zero is treated as
-one ESPN didn't keep.
+Every season is tried, and the page shows what actually came back. Before 2018
+ESPN keeps only the season move counts that ride along with the team data (its
+"weekly" rosters are the final roster with no points), so those seasons count
+moves from ESPN's totals and have no pickups, trades, or bench points. A season
+where every counter is zero is treated as one ESPN didn't keep.
 
 Points come from weekly rosters, one scoring period (NFL week) at a time, and
 stop at the league's last matchup week. A start only counts in a week the team
-had a game. Adds and drops before week 1 kickoff are left out, since the
-offline draft has been entered both as draft results and as roster adds.
+had a game.
+
+The offline draft is sometimes entered as roster adds instead of draft picks:
+2018 (each team adding its own picks), 2020 (two days of adds; ESPN's draft
+results that year are a placeholder), and commissioner adds on draft day (2026).
+Those adds are left out; every other pickup counts, preseason ones included.
+
+ESPN lists the players in a trade only when the logged-in member was part of it.
+Other trades are an executed accept or uphold with no players, so their players
+come from the week's roster changes: a player who moved between two teams with
+no add.
 """
 
 from __future__ import annotations
@@ -33,8 +43,12 @@ logger = logging.getLogger(__name__)
 EASTERN = ZoneInfo("America/New_York")
 PHASES = ("overall", "regular", "winners", "losers")
 PICKUP_TYPES = frozenset({"WAIVER", "FREEAGENT"})
-# ESPN may log one trade as a proposal, an accept, and an uphold; pieces dedupe them.
-TRANSACTION_TYPES = PICKUP_TYPES | {"TRADE_ACCEPT", "TRADE_UPHOLD", "TRADE_PROPOSAL"}
+# One trade can be executed as an accept per side plus an uphold; they share a related id.
+TRADE_TYPES = frozenset({"TRADE_ACCEPT", "TRADE_UPHOLD"})
+# "ROSTER" holds plain drops (and lineup changes, which are ignored).
+TRANSACTION_TYPES = PICKUP_TYPES | TRADE_TYPES | {"ROSTER"}
+# Eastern dates when that season's draft was entered as roster adds.
+DRAFT_ENTRY_DAYS: dict[int, tuple[date, ...]] = {2020: (date(2020, 9, 2), date(2020, 9, 3))}
 TOP_COUNT = 10
 
 
@@ -97,6 +111,8 @@ class SeasonMoves:
     drops: tuple[tuple[int, int], ...] = ()  # (week, team id)
     played: tuple[tuple[int, int], ...] = ()  # (week, team id) with a game that week
     weekly: bool = False  # ESPN's transaction list came back
+    # (week, team id, points, reason): commissioner score changes, part of ESPN's weekly score
+    adjustments: tuple[tuple[int, int, float, str], ...] = ()
 
     @property
     def counters_kept(self) -> bool:
@@ -135,19 +151,26 @@ def _week_points(player: Any, week: int) -> float:
     return float((getattr(player, "stats", {}) or {}).get(week, {}).get("points", 0) or 0)
 
 
-def read_lineups(
-    league: Any, week: int, slots: dict[str, int]
-) -> tuple[list[LineupWeek], dict[int, tuple[str, str]]]:
+@dataclass(frozen=True)
+class WeekRosters:
+    rows: list[LineupWeek]
+    names: dict[int, tuple[str, str]]
+    owners: dict[int, int]  # player id -> team id
+
+
+def read_lineups(league: Any, week: int, slots: dict[str, int]) -> WeekRosters:
     """Every team's roster for one scoring period, from league.load_roster_week."""
     league.load_roster_week(week)
     rows: list[LineupWeek] = []
     names: dict[int, tuple[str, str]] = {}
+    owners: dict[int, int] = {}
     for team in league.teams:
         starters: list[tuple[int, float]] = []
         pool: list[tuple[tuple[str, ...], float]] = []
         for player in team.roster:
             points = _week_points(player, week)
             player_id = int(player.playerId)
+            owners[player_id] = int(team.team_id)
             names[player_id] = (str(player.name), str(getattr(player, "position", "") or ""))
             slot = str(getattr(player, "lineupSlot", "") or "")
             if slot and slot not in NON_STARTER_SLOTS:
@@ -157,7 +180,7 @@ def read_lineups(
         actual = round(sum(points for _player, points in starters), 2)
         best = max(best_lineup(pool, slots), actual)
         rows.append(LineupWeek(week, int(team.team_id), actual, best, tuple(starters)))
-    return rows, names
+    return WeekRosters(rows, names, owners)
 
 
 def kickoff_ms(year: int) -> int:
@@ -170,21 +193,64 @@ def kickoff_ms(year: int) -> int:
 
 
 @dataclass(frozen=True)
+class DraftEntries:
+    """Draft picks entered as roster adds before week 1 kickoff. They aren't pickups."""
+
+    kickoff_ms: int = 0
+    drafted: frozenset[tuple[int, int]] = frozenset()  # (team id, player id) from ESPN's draft
+    days: tuple[date, ...] = ()  # Eastern dates when every add was a draft entry
+
+    def covers(self, item: dict[str, Any], team_id: int, player_id: int) -> bool:
+        """An add before kickoff of the team's own pick, by the commissioner, or on an entry day."""
+        when = int(item.get("processDate") or item.get("proposedDate") or 0)
+        if not self.kickoff_ms or not when or when >= self.kickoff_ms:
+            return False
+        if (team_id, player_id) in self.drafted or item.get("isLeagueManager"):
+            return True
+        return datetime.fromtimestamp(when / 1000, EASTERN).date() in self.days
+
+
+@dataclass(frozen=True)
 class WeekTransactions:
     pickups: list[Pickup]
     drops: list[tuple[int, int]]
-    trades: list[Trade]
+    trades: dict[str, Trade]  # receipt id -> trade, when ESPN listed its players
+    receipts: dict[str, int]  # receipt id -> week, for every executed trade
+    trade_drops: dict[tuple[str, int], tuple[int, int]]  # (receipt, player) -> (week, team)
     skipped: int
 
 
-def read_transactions(raw: list[dict[str, Any]], cutoff_ms: int = 0) -> WeekTransactions:
+def _pieces(entries: list[dict[str, Any]]) -> tuple[TradePiece, ...]:
+    return tuple(
+        sorted(
+            (
+                TradePiece(
+                    int(entry["playerId"]),
+                    int(entry.get("fromTeamId") or 0),
+                    int(entry.get("toTeamId") or 0),
+                )
+                for entry in entries
+                if entry.get("type") == "TRADE"
+            ),
+            key=lambda piece: (piece.from_team, piece.player_id),
+        )
+    )
+
+
+def read_transactions(
+    raw: list[dict[str, Any]], draft: DraftEntries | None = None
+) -> WeekTransactions:
     """Executed pickups, drops, and trades from ESPN's mTransactions2 list for one period.
 
-    Adds and drops processed before `cutoff_ms` are counted in `skipped` instead.
+    Draft entries are counted in `skipped` instead of as pickups. A trade's accept and
+    uphold records share a receipt id, so each trade and its drops count once.
     """
+    draft = draft or DraftEntries()
     pickups: list[Pickup] = []
     drops: list[tuple[int, int]] = []
-    trades: list[Trade] = []
+    trades: dict[str, Trade] = {}
+    receipts: dict[str, int] = {}
+    trade_drops: dict[tuple[str, int], tuple[int, int]] = {}
     skipped = 0
     for item in raw:
         if item.get("status") != "EXECUTED":
@@ -192,43 +258,115 @@ def read_transactions(raw: list[dict[str, Any]], cutoff_ms: int = 0) -> WeekTran
         kind = str(item.get("type", ""))
         week = int(item.get("scoringPeriodId") or 0)
         entries = item.get("items") or []
-        if kind in PICKUP_TYPES:
-            early = bool(cutoff_ms) and int(item.get("processDate") or cutoff_ms) < cutoff_ms
+        if kind in TRADE_TYPES:
+            pieces = _pieces(entries)
+            receipt = str(item.get("relatedTransactionId") or item.get("id") or (week, pieces))
+            receipts[receipt] = max(week, receipts.get(receipt, 0))
+            if pieces:
+                trades[receipt] = Trade(week, pieces)
             for entry in entries:
-                if early and entry.get("type") in ("ADD", "DROP"):
-                    skipped += 1 if entry.get("type") == "ADD" else 0
-                    continue
                 if entry.get("type") == "DROP":
                     team = int(entry.get("fromTeamId") or item.get("teamId") or 0)
-                    drops.append((week, team))
-                if entry.get("type") == "ADD":
-                    pickups.append(
-                        Pickup(
-                            week,
-                            int(entry.get("toTeamId") or item.get("teamId") or 0),
-                            int(entry["playerId"]),
-                            kind,
-                            int(item.get("bidAmount") or 0),
-                        )
-                    )
-        elif kind.startswith("TRADE"):
-            pieces = tuple(
-                sorted(
-                    (
-                        TradePiece(
-                            int(entry["playerId"]),
-                            int(entry.get("fromTeamId") or 0),
-                            int(entry.get("toTeamId") or 0),
-                        )
-                        for entry in entries
-                        if entry.get("type") == "TRADE"
-                    ),
-                    key=lambda piece: (piece.from_team, piece.player_id),
-                )
+                    trade_drops[(receipt, int(entry["playerId"]))] = (week, team)
+            continue
+        if kind not in PICKUP_TYPES and kind != "ROSTER":
+            continue
+        for entry in entries:
+            if entry.get("type") == "DROP":
+                drops.append((week, int(entry.get("fromTeamId") or item.get("teamId") or 0)))
+            elif entry.get("type") == "ADD" and kind in PICKUP_TYPES:
+                team = int(entry.get("toTeamId") or item.get("teamId") or 0)
+                player = int(entry["playerId"])
+                if draft.covers(item, team, player):
+                    skipped += 1
+                    continue
+                pickups.append(Pickup(week, team, player, kind, int(item.get("bidAmount") or 0)))
+    return WeekTransactions(pickups, drops, trades, receipts, trade_drops, skipped)
+
+
+def _roster_moves(
+    owners: dict[int, dict[int, int]],
+    week: int,
+    adds: set[tuple[int, int, int]],
+    listed: set[tuple[int, int]],
+) -> dict[frozenset[int], list[TradePiece]]:
+    """Players on a different team in `week` than the week before, with no add, by team pair."""
+    before, after = owners.get(week - 1), owners.get(week)
+    groups: dict[frozenset[int], list[TradePiece]] = defaultdict(list)
+    if not before or not after:
+        return groups
+    for player, old in before.items():
+        new = after.get(player)
+        if new is None or new == old:
+            continue
+        if any(
+            (seen, player) in listed or (seen, new, player) in adds for seen in (week - 1, week)
+        ):
+            continue
+        groups[frozenset((old, new))].append(TradePiece(player, old, new))
+    return groups
+
+
+def _route_flips(
+    groups: dict[frozenset[int], list[TradePiece]], count: int
+) -> dict[frozenset[int], list[TradePiece]]:
+    """A player flipped A -> B -> C in one week looks like A -> C; send him through B.
+
+    Only when the rosters show more trades than ESPN has, and B traded with both A and C.
+    """
+    for pair in list(groups):
+        if len(groups) <= count or pair not in groups:
+            break
+        pieces = groups[pair]
+        start, end = pieces[0].from_team, pieces[0].to_team
+        if any(piece.from_team != start for piece in pieces):
+            continue
+        middles = [
+            team
+            for team in {team for other in groups for team in other} - {start, end}
+            if frozenset((start, team)) in groups and frozenset((team, end)) in groups
+        ]
+        if len(middles) != 1:
+            continue
+        middle = middles[0]
+        del groups[pair]
+        for piece in pieces:
+            groups[frozenset((start, middle))].append(TradePiece(piece.player_id, start, middle))
+            groups[frozenset((middle, end))].append(TradePiece(piece.player_id, middle, end))
+    return groups
+
+
+def roster_trades(
+    owners: dict[int, dict[int, int]],
+    receipts: dict[int, int],
+    adds: set[tuple[int, int, int]],
+    listed: set[tuple[int, int]],
+) -> tuple[list[Trade], list[str]]:
+    """Trades ESPN has no players for, from the week's roster changes.
+
+    `owners` is week -> player -> team, `receipts` week -> trades without players executed
+    that week, `adds` (week, team, player) for pickups, and `listed` (week, player) for
+    trades ESPN did list. Only weeks with a receipt are searched, so a missed add can't
+    turn into a trade. If the week shows nothing, the next week is tried.
+    """
+    trades: list[Trade] = []
+    notes: list[str] = []
+    for week, count in sorted(receipts.items()):
+        groups = _roster_moves(owners, week, adds, listed) or _roster_moves(
+            owners, week + 1, adds, listed
+        )
+        groups = _route_flips(groups, count)
+        found = [
+            Trade(week, tuple(sorted(pieces, key=lambda p: (p.from_team, p.player_id))))
+            for _pair, pieces in sorted(groups.items(), key=lambda item: sorted(item[0]))
+        ]
+        if len(found) != count:
+            notes.append(
+                f"Week {week}: ESPN has {count} trades without players; "
+                f"the rosters show {len(found)}."
             )
-            if pieces:
-                trades.append(Trade(week, pieces))
-    return WeekTransactions(pickups, drops, trades, skipped)
+        trades.extend(found)
+    return trades, notes
 
 
 def _fetch_transactions(league: Any, week: int) -> list[dict[str, Any]]:
@@ -254,6 +392,15 @@ def _team_moves(league: Any) -> tuple[TeamMoves, ...]:
     )
 
 
+def _draft_entries(league: Any, year: int) -> DraftEntries:
+    drafted = frozenset(
+        (int(pick.team.team_id), int(pick.playerId))
+        for pick in getattr(league, "draft", None) or []
+        if getattr(pick, "team", None) is not None
+    )
+    return DraftEntries(kickoff_ms(year), drafted, DRAFT_ENTRY_DAYS.get(year, ()))
+
+
 def league_end_week(league: Any) -> int:
     """The league's last scoring period: the end of its last matchup, not ESPN's season end."""
     settings = getattr(league, "settings", None)
@@ -264,21 +411,32 @@ def league_end_week(league: Any) -> int:
     return int(getattr(league, "finalScoringPeriod", 0) or 0)
 
 
-def _fetch_played(league: Any) -> set[tuple[int, int]]:
-    """(scoring period, team id) for every team with a matchup, from ESPN's schedule."""
+def _fetch_schedule(
+    league: Any,
+) -> tuple[set[tuple[int, int]], list[tuple[int, int, float, str]]]:
+    """(scoring period, team id) for every team with a matchup, and score adjustments.
+
+    An adjustment is filed under the last scoring period of its matchup.
+    """
     periods = getattr(getattr(league, "settings", None), "matchup_periods", {}) or {}
     data = league.espn_request.league_get(params={"view": "mMatchupScore"})
     played: set[tuple[int, int]] = set()
+    adjustments: list[tuple[int, int, float, str]] = []
     for matchup in data.get("schedule", []):
-        scoring = periods.get(str(matchup.get("matchupPeriodId")), [])
-        home = (matchup.get("home") or {}).get("teamId")
-        away = (matchup.get("away") or {}).get("teamId")
+        scoring = [int(week) for week in periods.get(str(matchup.get("matchupPeriodId")), [])]
+        sides = [matchup.get("home") or {}, matchup.get("away") or {}]
+        for side in sides:
+            amount = float(side.get("adjustment") or 0)
+            if amount and scoring and side.get("teamId") is not None:
+                reason = str(side.get("adjustmentReason") or "")
+                adjustments.append((max(scoring), int(side["teamId"]), amount, reason))
+        home, away = (side.get("teamId") for side in sides)
         if home is None or away is None:
             continue
         for week in scoring:
-            played.add((int(week), int(home)))
-            played.add((int(week), int(away)))
-    return played
+            played.add((week, int(home)))
+            played.add((week, int(away)))
+    return played, adjustments
 
 
 def read_season(league: Any, year: int) -> SeasonMoves:
@@ -290,11 +448,14 @@ def read_season(league: Any, year: int) -> SeasonMoves:
     end = league_end_week(league)
     latest = int(getattr(league, "current_week", end) or end)
     last_week = min(end, latest) if end else latest
-    cutoff = kickoff_ms(year)
+    draft = _draft_entries(league, year)
     pickups: list[Pickup] = []
     drops: list[tuple[int, int]] = []
-    trades: list[Trade] = []
+    listed: dict[str, Trade] = {}
+    receipts: dict[str, int] = {}
+    trade_drops: dict[tuple[str, int], tuple[int, int]] = {}
     lineups: list[LineupWeek] = []
+    owners: dict[int, dict[int, int]] = {}
     names: dict[int, tuple[str, str]] = {}
     notes: list[str] = []
     skipped = 0
@@ -302,46 +463,67 @@ def read_season(league: Any, year: int) -> SeasonMoves:
     for week in range(1, last_week + 1):
         rosters_ok = transactions_ok = True
         try:
-            rows, found = read_lineups(league, week, slots)
-            lineups.extend(rows)
-            names.update(found)
+            found = read_lineups(league, week, slots)
+            lineups.extend(found.rows)
+            names.update(found.names)
+            owners[week] = found.owners
         except Exception as exc:
             rosters_ok = False
             notes.append(f"Week {week} rosters failed: {exc}")
         try:
-            found_moves = read_transactions(_fetch_transactions(league, week), cutoff)
+            raw = _fetch_transactions(league, week)
+            found_moves = read_transactions(raw, draft)
             pickups.extend(found_moves.pickups)
             drops.extend(found_moves.drops)
-            trades.extend(found_moves.trades)
+            listed.update(found_moves.trades)
+            for receipt, seen in found_moves.receipts.items():
+                receipts[receipt] = max(seen, receipts.get(receipt, 0))
+            trade_drops.update(found_moves.trade_drops)
             skipped += found_moves.skipped
-            weekly = True
+            weekly = weekly or bool(raw)
         except Exception as exc:
             transactions_ok = False
             notes.append(f"Week {week} transactions failed: {exc}")
         if week == 1 and not rosters_ok and not transactions_ok:
             notes = ["ESPN returned no weekly rosters or transactions for this season."]
             break
+    if lineups and not any(row.actual for row in lineups):
+        if weekly:
+            notes.append("Rosters came back without points.")
+        else:
+            lineups, owners = [], {}
+            notes.append(
+                "ESPN keeps only season totals for this season: its weekly rosters "
+                "have no points and there are no transactions."
+            )
     played: set[tuple[int, int]] = set()
+    adjustments: list[tuple[int, int, float, str]] = []
     if lineups:
         try:
-            played = _fetch_played(league)
+            played, adjustments = _fetch_schedule(league)
         except Exception as exc:
             notes.append(f"Schedule failed, so starts count every week: {exc}")
     if skipped:
-        notes.append(f"Left out {skipped} adds made before week 1 kickoff (draft entries).")
+        notes.append(f"Left out {skipped} draft picks entered as roster adds.")
     for player_id, name in (getattr(league, "player_map", {}) or {}).items():
         if isinstance(player_id, int) and isinstance(name, str):
             names.setdefault(player_id, (name, ""))
-    unique_trades: dict[tuple[TradePiece, ...], Trade] = {}
-    for trade in trades:
-        seen = unique_trades.get(trade.pieces)
-        if seen is None or trade.week > seen.week:
-            unique_trades[trade.pieces] = trade
     unique_pickups = list({(p.week, p.team_id, p.player_id): p for p in pickups}.values())
-    if lineups and not any(row.actual for row in lineups):
-        notes.append("Rosters came back without points.")
+    trades = [Trade(receipts[receipt], trade.pieces) for receipt, trade in listed.items()]
+    unlisted: dict[int, int] = defaultdict(int)
+    for receipt, week in receipts.items():
+        if receipt not in listed:
+            unlisted[week] += 1
+    found_trades, trade_notes = roster_trades(
+        owners,
+        dict(unlisted),
+        {(p.week, p.team_id, p.player_id) for p in pickups},
+        {(trade.week, piece.player_id) for trade in trades for piece in trade.pieces},
+    )
+    trades.extend(found_trades)
+    notes.extend(trade_notes)
     used = {pickup.player_id for pickup in unique_pickups} | {
-        piece.player_id for trade in unique_trades.values() for piece in trade.pieces
+        piece.player_id for trade in trades for piece in trade.pieces
     }
     used |= {player_id for row in lineups for player_id, _points in row.starters}
     return SeasonMoves(
@@ -349,7 +531,12 @@ def read_season(league: Any, year: int) -> SeasonMoves:
         regular,
         teams,
         tuple(unique_pickups),
-        tuple(sorted(unique_trades.values(), key=lambda trade: trade.week)),
+        tuple(
+            sorted(
+                trades,
+                key=lambda trade: (trade.week, [(p.from_team, p.player_id) for p in trade.pieces]),
+            )
+        ),
         tuple(lineups),
         tuple(
             (player_id, name, position)
@@ -357,9 +544,10 @@ def read_season(league: Any, year: int) -> SeasonMoves:
             if player_id in used
         ),
         tuple(notes),
-        tuple(drops),
+        tuple(drops) + tuple(trade_drops.values()),
         tuple(sorted(played)),
         weekly,
+        tuple(sorted(adjustments)),
     )
 
 
@@ -406,6 +594,10 @@ def load_moves_snapshot(text: str) -> dict[int, SeasonMoves]:
             tuple((int(week), int(team)) for week, team in data.get("drops", [])),
             tuple((int(week), int(team)) for week, team in data.get("played", [])),
             bool(data.get("weekly", False)),
+            tuple(
+                (int(week), int(team), float(points), str(reason))
+                for week, team, points, reason in data.get("adjustments", [])
+            ),
         )
         seasons[season.year] = season
     return seasons
@@ -436,15 +628,13 @@ class ActiveRow:
         return f"{self.adds / self.seasons:.1f}" if self.seasons else "—"
 
 
-def _counted(season: SeasonMoves) -> dict[int, tuple[int, int, int, int]]:
-    """team -> (adds, drops, trades, FAAB) counted from the transaction list."""
+def _counted(season: SeasonMoves) -> dict[int, tuple[int, int, int]]:
+    """team -> (adds, drops, trades) counted from the transaction list."""
     adds: dict[int, int] = defaultdict(int)
-    faab: dict[int, int] = defaultdict(int)
     drops: dict[int, int] = defaultdict(int)
     trades: dict[int, int] = defaultdict(int)
     for pickup in season.pickups:
         adds[pickup.team_id] += 1
-        faab[pickup.team_id] += pickup.bid if pickup.kind == "WAIVER" else 0
     for _week, team_id in season.drops:
         drops[team_id] += 1
     for trade in season.trades:
@@ -457,7 +647,6 @@ def _counted(season: SeasonMoves) -> dict[int, tuple[int, int, int, int]]:
             adds[team.team_id],
             drops[team.team_id],
             trades[team.team_id],
-            faab[team.team_id],
         )
         for team in season.teams
     }
@@ -466,7 +655,7 @@ def _counted(season: SeasonMoves) -> dict[int, tuple[int, int, int, int]]:
 def most_active(seasons: list[SeasonMoves]) -> tuple[ActiveRow, ...]:
     """Moves per person: counted from transactions when ESPN gave them, else its season counts.
 
-    Seasons with neither are skipped. IR moves always come from ESPN's counts.
+    Seasons with neither are skipped. IR moves and FAAB always come from ESPN's counts.
     """
     totals: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0, 0, 0, 0])
     for season in seasons:
@@ -474,8 +663,8 @@ def most_active(seasons: list[SeasonMoves]) -> tuple[ActiveRow, ...]:
             continue
         counted = _counted(season) if season.weekly else {}
         for team in season.teams:
-            adds, drops, trades, faab = counted.get(
-                team.team_id, (team.acquisitions, team.drops, team.trades, team.faab_spent)
+            adds, drops, trades = counted.get(
+                team.team_id, (team.acquisitions, team.drops, team.trades)
             )
             line = totals[team.person]
             line[0] += 1
@@ -483,7 +672,7 @@ def most_active(seasons: list[SeasonMoves]) -> tuple[ActiveRow, ...]:
             line[2] += drops
             line[3] += trades
             line[4] += team.ir_moves
-            line[5] += faab
+            line[5] += team.faab_spent
     return tuple(ActiveRow(person, *totals[person]) for person in sorted(totals, key=_person_order))
 
 
@@ -738,19 +927,23 @@ class SeasonStatus:
 
 
 def _score_check(season: SeasonMoves, record: SeasonRecord | None) -> tuple[int, int]:
-    """Team-weeks whose starters add up to ESPN's score for that week, out of those compared."""
+    """Team-weeks whose starters (plus any score adjustment) add up to ESPN's weekly score."""
     if record is None:
         return 0, 0
     scores = {
         (week.week, team_id): score for week in record.weeks for team_id, score in week.scores
     }
+    adjusted: dict[tuple[int, int], float] = defaultdict(float)
+    for week, team_id, points, _reason in season.adjustments:
+        adjusted[(week, team_id)] += points
     checked = matched = 0
     for row in season.lineups:
         score = scores.get((row.week, row.team_id))
         if score is None:
             continue
         checked += 1
-        matched += 1 if abs(score - row.actual) < 0.05 else 0
+        total = row.actual + adjusted[(row.week, row.team_id)]
+        matched += 1 if abs(score - total) < 0.05 else 0
     return checked, matched
 
 

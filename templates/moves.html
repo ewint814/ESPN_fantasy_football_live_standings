@@ -291,7 +291,7 @@
                             <th title="Weeks of rosters">Roster wks</th>
                             <th>Pickups</th>
                             <th>Trades</th>
-                            <th title="Team-weeks where the starters add up to ESPN's score">Lineup check</th>
+                            <th title="Team-weeks where the starters, plus any commissioner score adjustment, add up to ESPN's score">Lineup check</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -369,7 +369,7 @@
             </div>
             {% endif %}
             {% endfor %}
-            <p class="note" style="margin-top:6px">Seasons with ESPN's transaction list are counted from it, starting at week 1 kickoff so draft entries don't count. Other seasons use ESPN's season counts, which may include draft entries. IR is always ESPN's count. Tap a column to sort.</p>
+            <p class="note" style="margin-top:6px">From 2018 on, counted from ESPN's transaction list: every pickup (preseason too) except draft picks entered as adds, every drop, and every trade. Earlier seasons use ESPN's season counts, which may include draft entries. IR and FAAB are always ESPN's counts. Tap a column to sort.</p>
         </section>
         {% endif %}
 
@@ -424,7 +424,7 @@
             </div>
             {% endfor %}
             {% endfor %}
-            <p class="note" style="margin-top:6px">Waiver and free-agent adds, not counting adds before week 1 kickoff (the draft). Points he scored as a starter for that team, from the pickup until he was dropped or traded. Bracket side follows the history page: playoff teams are the winners' bracket.</p>
+            <p class="note" style="margin-top:6px">Waiver and free-agent adds, not counting draft picks entered as adds. Points he scored as a starter for that team, from the pickup until he was dropped or traded. Bracket side follows the history page: playoff teams are the winners' bracket.</p>
         </section>
         {% endif %}
 

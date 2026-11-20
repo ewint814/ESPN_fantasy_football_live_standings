@@ -7,7 +7,12 @@ from typing import Any
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from datetime import date, datetime
+
 from league_moves import (
+    EASTERN,
+    DraftEntries,
+    TradePiece,
     best_lineup,
     dump_moves,
     kickoff_ms,
@@ -15,6 +20,7 @@ from league_moves import (
     moves_view,
     read_season,
     read_transactions,
+    roster_trades,
 )
 from league_stats import SeasonRecord, TeamRecord, WeekScores
 
@@ -69,20 +75,21 @@ BEFORE_KICKOFF = kickoff_ms(2023) - 60_000
 
 TRANSACTIONS: dict[int, list[dict[str, Any]]] = {
     1: [
-        # Ed RB entered as an add on draft night.
+        # Ed RB, Joe's draft pick, entered as an add on draft night.
         {
             "status": "EXECUTED",
             "type": "FREEAGENT",
             "scoringPeriodId": 1,
-            "processDate": BEFORE_KICKOFF,
+            "proposedDate": BEFORE_KICKOFF,
             "teamId": 2,
             "items": [{"type": "ADD", "playerId": 5, "toTeamId": 2}],
         },
+        # Free-agent adds have no processDate.
         {
             "status": "EXECUTED",
             "type": "FREEAGENT",
             "scoringPeriodId": 1,
-            "processDate": AFTER_KICKOFF,
+            "proposedDate": AFTER_KICKOFF,
             "teamId": 2,
             "items": [{"type": "ADD", "playerId": 7, "toTeamId": 2}],
         },
@@ -107,14 +114,58 @@ TRANSACTIONS: dict[int, list[dict[str, Any]]] = {
             "items": [{"type": "ADD", "playerId": 4, "toTeamId": 2}],
         },
     ],
+    2: [
+        # A plain drop, and a lineup change that isn't a move.
+        {
+            "status": "EXECUTED",
+            "type": "ROSTER",
+            "scoringPeriodId": 2,
+            "teamId": 2,
+            "items": [
+                {"type": "DROP", "playerId": 98, "fromTeamId": 2},
+                {"type": "LINEUP", "playerId": 7},
+            ],
+        },
+    ],
+    3: [
+        # One trade: an accept per side and the commissioner's uphold, one with the players.
+        # Joe's drop rides along on two of them and counts once.
+        {"status": "PENDING", "type": "TRADE_PROPOSAL", "scoringPeriodId": 3, "items": TRADE_ITEMS},
+        {
+            "status": "EXECUTED",
+            "type": "TRADE_ACCEPT",
+            "scoringPeriodId": 3,
+            "relatedTransactionId": "t1",
+            "items": TRADE_ITEMS + [{"type": "DROP", "playerId": 97, "fromTeamId": 2}],
+        },
+        {
+            "status": "EXECUTED",
+            "type": "TRADE_ACCEPT",
+            "scoringPeriodId": 3,
+            "relatedTransactionId": "t1",
+            "items": [{"type": "DROP", "playerId": 97, "fromTeamId": 2}],
+        },
+        {
+            "status": "EXECUTED",
+            "type": "TRADE_UPHOLD",
+            "scoringPeriodId": 3,
+            "id": "u1",
+            "relatedTransactionId": "t1",
+        },
+    ],
+}
+
+# How ESPN shows a trade the logged-in member wasn't in: no players.
+UNLISTED: dict[int, list[dict[str, Any]]] = {
+    **TRANSACTIONS,
     3: [
         {
             "status": "EXECUTED",
-            "type": "TRADE_PROPOSAL",
+            "type": "TRADE_ACCEPT",
             "scoringPeriodId": 3,
-            "items": TRADE_ITEMS,
-        },
-        {"status": "EXECUTED", "type": "TRADE_ACCEPT", "scoringPeriodId": 3, "items": TRADE_ITEMS},
+            "relatedTransactionId": "t1",
+            "items": [],
+        }
     ],
 }
 
@@ -131,10 +182,14 @@ FULL_SCHEDULE = [matchup(period, 1, 2) for period in (1, 2, 3)]
 
 class FakeRequest:
     def __init__(
-        self, broken_week: int | None = None, schedule: list[dict[str, Any]] | None = None
+        self,
+        broken_week: int | None = None,
+        schedule: list[dict[str, Any]] | None = None,
+        transactions: dict[int, list[dict[str, Any]]] | None = None,
     ) -> None:
         self.broken_week = broken_week
         self.schedule = FULL_SCHEDULE if schedule is None else schedule
+        self.transactions = TRANSACTIONS if transactions is None else transactions
         self.weeks_asked: list[int] = []
 
     def league_get(
@@ -147,7 +202,7 @@ class FakeRequest:
         self.weeks_asked.append(week)
         if week == self.broken_week:
             raise RuntimeError("503")
-        return {"transactions": TRANSACTIONS.get(week, [])}
+        return {"transactions": self.transactions.get(week, [])}
 
 
 class DeadRequest:
@@ -174,6 +229,8 @@ class FakeLeague:
         broken_week: int | None = None,
         schedule: list[dict[str, Any]] | None = None,
         dead: bool = False,
+        transactions: dict[int, list[dict[str, Any]]] | None = None,
+        pointless: bool = False,
     ) -> None:
         def team(team_id: int, name: str, adds: int) -> SimpleNamespace:
             return SimpleNamespace(
@@ -198,16 +255,25 @@ class FakeLeague:
         self.finalScoringPeriod = 5
         self.current_week = 5
         self.player_map = {pid: name for pid, (name, _pos, _slots) in PLAYERS.items()}
+        self.draft = [SimpleNamespace(team=self.teams[1], playerId=5)]
         self.dead = dead
-        self.espn_request: Any = DeadRequest() if dead else FakeRequest(broken_week, schedule)
+        # Like ESPN before 2018: the final roster every week, no points, no transactions.
+        self.pointless = pointless
+        if pointless:
+            transactions = {}
+        self.espn_request: Any = (
+            DeadRequest() if dead else FakeRequest(broken_week, schedule, transactions)
+        )
 
     def load_roster_week(self, week: int) -> None:
         if self.dead:
             raise RuntimeError("no rosters")
         for team in self.teams:
             team.roster = [
-                fake_player(pid, slot, points, week)
-                for pid, slot, points in ROSTERS[week].get(team.team_id, [])
+                fake_player(pid, slot, 0.0 if self.pointless else points, week)
+                for pid, slot, points in ROSTERS[3 if self.pointless else week].get(
+                    team.team_id, []
+                )
             ]
 
 
@@ -235,28 +301,56 @@ def test_best_lineup_fills_single_slots_first() -> None:
     assert best_lineup([(("RB", "RB/WR/TE"), 9.0)], {"RB/WR/TE": 1, "RB": 1}) == 9.0
 
 
-def test_transactions_skip_draft_night_and_keep_executed_moves() -> None:
-    found = read_transactions(TRANSACTIONS[1] + TRANSACTIONS[3], kickoff_ms(2023))
+def test_transactions_skip_draft_entries_and_keep_executed_moves() -> None:
+    draft = DraftEntries(kickoff_ms(2023), frozenset({(2, 5)}))
+    found = read_transactions(TRANSACTIONS[1] + TRANSACTIONS[2] + TRANSACTIONS[3], draft)
     assert [(p.team_id, p.player_id, p.kind, p.bid) for p in found.pickups] == [
         (2, 7, "FREEAGENT", 0),
         (1, 4, "WAIVER", 12),
     ]
     assert found.skipped == 1
-    assert found.drops == [(1, 1)]
-    assert len(found.trades) == 2
-    assert {(piece.player_id, piece.to_team) for piece in found.trades[0].pieces} == {
+    # The waiver drop and the plain drop; the trade's drop is kept once, by receipt.
+    assert found.drops == [(1, 1), (2, 2)]
+    assert found.trade_drops == {("t1", 97): (3, 2)}
+    assert found.receipts == {"t1": 3} and list(found.trades) == ["t1"]
+    assert {(piece.player_id, piece.to_team) for piece in found.trades["t1"].pieces} == {
         (4, 2),
         (5, 1),
     }
     assert len(read_transactions(TRANSACTIONS[1]).pickups) == 3
 
 
-def test_read_season_stops_at_the_league_end_and_dedupes_trades() -> None:
+def test_draft_entries_by_the_commissioner_or_on_entry_days() -> None:
+    def add(when: int, **extra: Any) -> dict[str, Any]:
+        return {
+            "status": "EXECUTED",
+            "type": "FREEAGENT",
+            "scoringPeriodId": 1,
+            "proposedDate": when,
+            "teamId": 2,
+            "items": [{"type": "ADD", "playerId": 7, "toTeamId": 2}],
+            **extra,
+        }
+
+    draft = DraftEntries(kickoff_ms(2023))
+    # A preseason pickup counts; the commissioner adding for a team before kickoff doesn't.
+    assert read_transactions([add(BEFORE_KICKOFF)], draft).skipped == 0
+    assert read_transactions([add(BEFORE_KICKOFF, isLeagueManager=True)], draft).skipped == 1
+    assert read_transactions([add(AFTER_KICKOFF, isLeagueManager=True)], draft).skipped == 0
+    entry_day = datetime.fromtimestamp(BEFORE_KICKOFF / 1000, EASTERN).date()
+    days = DraftEntries(kickoff_ms(2023), days=(entry_day,))
+    assert read_transactions([add(BEFORE_KICKOFF)], days).skipped == 1
+    other_day = DraftEntries(kickoff_ms(2023), days=(date(2023, 8, 1),))
+    assert read_transactions([add(BEFORE_KICKOFF)], other_day).skipped == 0
+
+
+def test_read_season_stops_at_the_league_end_and_counts_each_trade_once() -> None:
     league = FakeLeague()
     season = read_season(league, 2023)
     assert league.espn_request.weeks_asked == [1, 2, 3]
     assert season.counters_kept and season.weekly
     assert len(season.trades) == 1 and season.trades[0].week == 3
+    assert sorted(season.drops) == [(1, 1), (2, 2), (3, 2)]
     weeks = {(row.week, row.team_id): row for row in season.lineups}
     first = weeks[(1, 1)]
     assert first.actual == 39.0
@@ -264,7 +358,32 @@ def test_read_season_stops_at_the_league_end_and_dedupes_trades() -> None:
     assert first.best == 49.0
     # Will WR's 40 on IR doesn't count as left on the bench.
     assert weeks[(2, 1)].best == weeks[(2, 1)].actual == 58.0
-    assert season.notes == ("Left out 1 adds made before week 1 kickoff (draft entries).",)
+    assert season.notes == ("Left out 1 draft picks entered as roster adds.",)
+
+
+def test_unlisted_trades_come_from_roster_changes() -> None:
+    listed = read_season(FakeLeague(), 2023)
+    unlisted = read_season(FakeLeague(transactions=UNLISTED), 2023)
+    assert unlisted.trades == listed.trades
+    assert "Ed RB" in {name for _pid, name, _pos in unlisted.players}
+
+
+def test_roster_trades_route_a_same_week_flip() -> None:
+    # Week 2: A (1) trades player 10 to B (2) for 11, and B flips 10 to C (3) for 20.
+    owners = {1: {10: 1, 11: 2, 20: 3}, 2: {10: 3, 11: 1, 20: 2}}
+    trades, notes = roster_trades(owners, {2: 2}, set(), set())
+    assert notes == []
+    assert {trade.pieces for trade in trades} == {
+        (TradePiece(10, 1, 2), TradePiece(11, 2, 1)),
+        (TradePiece(10, 2, 3), TradePiece(20, 3, 2)),
+    }
+    # A pickup isn't a trade, and weeks without a receipt aren't searched.
+    assert roster_trades(owners, {2: 1}, {(2, 3, 10), (2, 1, 11), (2, 2, 20)}, set())[0] == []
+    assert roster_trades(owners, {}, set(), set()) == ([], [])
+    # More receipts than roster changes: no flip routing, and a note.
+    trades, notes = roster_trades(owners, {2: 4}, set(), set())
+    assert len(trades) == 3
+    assert notes == ["Week 2: ESPN has 4 trades without players; the rosters show 3."]
 
 
 def test_moves_view_numbers() -> None:
@@ -300,11 +419,21 @@ def test_moves_view_numbers() -> None:
     assert bench["Eli"].perfect_pct == "50%"
     assert view.bench_worst[0].person == "Eli" and view.bench_worst[0].left == 10.0
 
-    # Counted from transactions, not ESPN's counters (5 and 2 adds).
+    # Counted from transactions, not ESPN's counters (5 and 2 adds); FAAB is ESPN's.
     active = {row.person: row for row in view.active}
     assert (active["Eli"].adds, active["Eli"].drops, active["Eli"].trades) == (1, 1, 1)
     assert active["Eli"].faab == 12 and active["Eli"].ir_moves == 1
-    assert (active["Joe"].adds, active["Joe"].trades, active["Joe"].faab) == (1, 1, 0)
+    assert (active["Joe"].adds, active["Joe"].drops, active["Joe"].trades) == (1, 2, 1)
+    assert active["Joe"].faab == 0
+
+
+def test_score_adjustments_count_in_the_lineup_check() -> None:
+    schedule = [matchup(1, 1, 2), matchup(2, 1, 2), matchup(3, 1, 2)]
+    schedule[1]["away"].update(adjustment=81.0, adjustmentReason="stat fix")
+    season = read_season(FakeLeague(schedule=schedule), 2023)
+    assert season.adjustments == ((2, 2, 81.0, "stat fix"),)
+    status = moves_view({2023: season}, {2023: history_record()}).status[0]
+    assert (status.checked, status.matched) == (4, 4)
 
 
 def test_starts_only_count_in_weeks_with_a_game() -> None:
@@ -329,6 +458,19 @@ def test_old_seasons_and_missing_counters() -> None:
     assert moves_view({2014: nothing}).active == ()
 
 
+def test_seasons_with_only_totals() -> None:
+    # Before 2018 ESPN repeats the final roster every week with no points.
+    old = read_season(FakeLeague(pointless=True), 2015)
+    assert old.lineups == () and not old.weekly and old.trades == ()
+    assert old.notes == (
+        "ESPN keeps only season totals for this season: its weekly rosters "
+        "have no points and there are no transactions.",
+    )
+    view = moves_view({2015: old})
+    assert view.status[0].roster_weeks == 0 and view.bench == ()
+    assert {row.person: row.adds for row in view.active} == {"Eli": 5, "Joe": 2}
+
+
 def test_a_failed_week_is_noted() -> None:
     season = read_season(FakeLeague(broken_week=3), 2023)
     assert season.trades == ()
@@ -336,17 +478,25 @@ def test_a_failed_week_is_noted() -> None:
 
 
 def test_snapshot_round_trip() -> None:
-    season = read_season(FakeLeague(), 2023)
+    schedule = [matchup(1, 1, 2), matchup(2, 1, 2), matchup(3, 1, 2)]
+    schedule[0]["home"].update(adjustment=2.0, adjustmentReason="colts d")
+    season = read_season(FakeLeague(schedule=schedule), 2023)
+    assert season.adjustments
     assert load_moves_snapshot(dump_moves({2023: season})) == {2023: season}
 
 
 def main() -> None:
     test_best_lineup_fills_single_slots_first()
-    test_transactions_skip_draft_night_and_keep_executed_moves()
-    test_read_season_stops_at_the_league_end_and_dedupes_trades()
+    test_transactions_skip_draft_entries_and_keep_executed_moves()
+    test_draft_entries_by_the_commissioner_or_on_entry_days()
+    test_read_season_stops_at_the_league_end_and_counts_each_trade_once()
+    test_unlisted_trades_come_from_roster_changes()
+    test_roster_trades_route_a_same_week_flip()
     test_moves_view_numbers()
+    test_score_adjustments_count_in_the_lineup_check()
     test_starts_only_count_in_weeks_with_a_game()
     test_old_seasons_and_missing_counters()
+    test_seasons_with_only_totals()
     test_a_failed_week_is_noted()
     test_snapshot_round_trip()
     print("moves ok")

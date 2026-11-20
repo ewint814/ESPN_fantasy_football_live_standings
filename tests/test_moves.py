@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from league_moves import (
     best_lineup,
     dump_moves,
+    kickoff_ms,
     load_moves_snapshot,
     moves_view,
     read_season,
@@ -63,12 +64,33 @@ TRADE_ITEMS = [
     {"type": "TRADE", "playerId": 5, "fromTeamId": 2, "toTeamId": 1},
 ]
 
+AFTER_KICKOFF = kickoff_ms(2023) + 60_000
+BEFORE_KICKOFF = kickoff_ms(2023) - 60_000
+
 TRANSACTIONS: dict[int, list[dict[str, Any]]] = {
     1: [
+        # Ed RB entered as an add on draft night.
+        {
+            "status": "EXECUTED",
+            "type": "FREEAGENT",
+            "scoringPeriodId": 1,
+            "processDate": BEFORE_KICKOFF,
+            "teamId": 2,
+            "items": [{"type": "ADD", "playerId": 5, "toTeamId": 2}],
+        },
+        {
+            "status": "EXECUTED",
+            "type": "FREEAGENT",
+            "scoringPeriodId": 1,
+            "processDate": AFTER_KICKOFF,
+            "teamId": 2,
+            "items": [{"type": "ADD", "playerId": 7, "toTeamId": 2}],
+        },
         {
             "status": "EXECUTED",
             "type": "WAIVER",
             "scoringPeriodId": 1,
+            "processDate": AFTER_KICKOFF,
             "teamId": 1,
             "bidAmount": 12,
             "items": [
@@ -97,16 +119,40 @@ TRANSACTIONS: dict[int, list[dict[str, Any]]] = {
 }
 
 
-class FakeRequest:
-    def __init__(self, broken_week: int | None = None) -> None:
-        self.broken_week = broken_week
+def matchup(period: int, home: int, away: int | None) -> dict[str, Any]:
+    game: dict[str, Any] = {"matchupPeriodId": period, "home": {"teamId": home}}
+    if away is not None:
+        game["away"] = {"teamId": away}
+    return game
 
-    def league_get(self, params: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+
+FULL_SCHEDULE = [matchup(period, 1, 2) for period in (1, 2, 3)]
+
+
+class FakeRequest:
+    def __init__(
+        self, broken_week: int | None = None, schedule: list[dict[str, Any]] | None = None
+    ) -> None:
+        self.broken_week = broken_week
+        self.schedule = FULL_SCHEDULE if schedule is None else schedule
+        self.weeks_asked: list[int] = []
+
+    def league_get(
+        self, params: dict[str, Any], headers: dict[str, str] | None = None
+    ) -> dict[str, Any]:
+        if params["view"] == "mMatchupScore":
+            return {"schedule": self.schedule}
         week = int(params["scoringPeriodId"])
-        assert params["view"] == "mTransactions2" and "x-fantasy-filter" in headers
+        assert params["view"] == "mTransactions2" and headers and "x-fantasy-filter" in headers
+        self.weeks_asked.append(week)
         if week == self.broken_week:
             raise RuntimeError("503")
         return {"transactions": TRANSACTIONS.get(week, [])}
+
+
+class DeadRequest:
+    def league_get(self, params: dict[str, Any], headers: Any = None) -> dict[str, Any]:
+        raise RuntimeError("leagueHistory returned a list")
 
 
 def fake_player(player_id: int, slot: str, points: float, week: int) -> SimpleNamespace:
@@ -122,7 +168,13 @@ def fake_player(player_id: int, slot: str, points: float, week: int) -> SimpleNa
 
 
 class FakeLeague:
-    def __init__(self, counters: bool = True, broken_week: int | None = None) -> None:
+    def __init__(
+        self,
+        counters: bool = True,
+        broken_week: int | None = None,
+        schedule: list[dict[str, Any]] | None = None,
+        dead: bool = False,
+    ) -> None:
         def team(team_id: int, name: str, adds: int) -> SimpleNamespace:
             return SimpleNamespace(
                 team_id=team_id,
@@ -137,18 +189,38 @@ class FakeLeague:
             )
 
         self.teams = [team(1, "Eli", 5), team(2, "Joe", 2)]
-        self.settings = SimpleNamespace(reg_season_count=2, position_slot_counts=SLOTS)
-        self.finalScoringPeriod = 3
-        self.current_week = 3
+        # ESPN's season runs to week 5; the league's last matchup ends week 3.
+        self.settings = SimpleNamespace(
+            reg_season_count=2,
+            position_slot_counts=SLOTS,
+            matchup_periods={"1": [1], "2": [2], "3": [3]},
+        )
+        self.finalScoringPeriod = 5
+        self.current_week = 5
         self.player_map = {pid: name for pid, (name, _pos, _slots) in PLAYERS.items()}
-        self.espn_request = FakeRequest(broken_week)
+        self.dead = dead
+        self.espn_request: Any = DeadRequest() if dead else FakeRequest(broken_week, schedule)
 
     def load_roster_week(self, week: int) -> None:
+        if self.dead:
+            raise RuntimeError("no rosters")
         for team in self.teams:
             team.roster = [
                 fake_player(pid, slot, points, week)
                 for pid, slot, points in ROSTERS[week].get(team.team_id, [])
             ]
+
+
+def history_record() -> SeasonRecord:
+    return SeasonRecord(
+        2023,
+        (
+            TeamRecord(1, "Eli", "Eli", 2, 0, 0, 0.0, 1),
+            TeamRecord(2, "Joe", "Joe", 0, 2, 0, 0.0),
+        ),
+        (),
+        (WeekScores(1, ((1, 39.0), (2, 15.0))), WeekScores(2, ((1, 58.0), (2, 99.0)))),
+    )
 
 
 def test_best_lineup_fills_single_slots_first() -> None:
@@ -163,16 +235,27 @@ def test_best_lineup_fills_single_slots_first() -> None:
     assert best_lineup([(("RB", "RB/WR/TE"), 9.0)], {"RB/WR/TE": 1, "RB": 1}) == 9.0
 
 
-def test_transactions_keep_executed_pickups_and_trades() -> None:
-    pickups, trades = read_transactions(TRANSACTIONS[1] + TRANSACTIONS[3])
-    assert [(p.team_id, p.player_id, p.kind, p.bid) for p in pickups] == [(1, 4, "WAIVER", 12)]
-    assert len(trades) == 2
-    assert {(piece.player_id, piece.to_team) for piece in trades[0].pieces} == {(4, 2), (5, 1)}
+def test_transactions_skip_draft_night_and_keep_executed_moves() -> None:
+    found = read_transactions(TRANSACTIONS[1] + TRANSACTIONS[3], kickoff_ms(2023))
+    assert [(p.team_id, p.player_id, p.kind, p.bid) for p in found.pickups] == [
+        (2, 7, "FREEAGENT", 0),
+        (1, 4, "WAIVER", 12),
+    ]
+    assert found.skipped == 1
+    assert found.drops == [(1, 1)]
+    assert len(found.trades) == 2
+    assert {(piece.player_id, piece.to_team) for piece in found.trades[0].pieces} == {
+        (4, 2),
+        (5, 1),
+    }
+    assert len(read_transactions(TRANSACTIONS[1]).pickups) == 3
 
 
-def test_read_season_lineups_and_dedupes_trades() -> None:
-    season = read_season(FakeLeague(), 2023)
-    assert season.counters_kept
+def test_read_season_stops_at_the_league_end_and_dedupes_trades() -> None:
+    league = FakeLeague()
+    season = read_season(league, 2023)
+    assert league.espn_request.weeks_asked == [1, 2, 3]
+    assert season.counters_kept and season.weekly
     assert len(season.trades) == 1 and season.trades[0].week == 3
     weeks = {(row.week, row.team_id): row for row in season.lineups}
     first = weeks[(1, 1)]
@@ -181,54 +264,69 @@ def test_read_season_lineups_and_dedupes_trades() -> None:
     assert first.best == 49.0
     # Will WR's 40 on IR doesn't count as left on the bench.
     assert weeks[(2, 1)].best == weeks[(2, 1)].actual == 58.0
-    assert not season.notes
+    assert season.notes == ("Left out 1 adds made before week 1 kickoff (draft entries).",)
 
 
 def test_moves_view_numbers() -> None:
     season = read_season(FakeLeague(), 2023)
-    record = SeasonRecord(
-        2023,
-        (TeamRecord(1, "Eli", "Eli", 2, 0, 0, 0.0), TeamRecord(2, "Joe", "Joe", 0, 2, 0, 0.0)),
-        (),
-        (WeekScores(1, ((1, 39.0), (2, 15.0))), WeekScores(2, ((1, 58.0), (2, 99.0)))),
-    )
-    view = moves_view({2023: season}, {2023: record})
+    view = moves_view({2023: season}, {2023: history_record()})
     status = view.status[0]
-    assert (status.roster_weeks, status.pickups, status.trades) == (3, 1, 1)
+    assert (status.roster_weeks, status.pickups, status.trades) == (3, 2, 1)
     assert (status.checked, status.matched) == (4, 3)
 
-    pickup = view.pickups[""][0]
+    overall = view.pickups["overall"]
     # Dan RB: benched week 1, started week 2 for 30, traded away week 3.
-    assert (pickup.person, pickup.player, pickup.points, pickup.starts) == (
-        "Eli",
-        "Dan RB",
-        30.0,
-        1,
-    )
-    assert pickup.how == "Waiver $12"
-    assert "Joe" not in view.pickups
+    dan = overall[""][0]
+    assert (dan.person, dan.player, dan.points, dan.starts) == ("Eli", "Dan RB", 30.0, 1)
+    assert dan.how == "Waiver $12" and overall["Eli"] == (dan,)
+    # Tim TE for Joe: 6 + 7 + 9.
+    tim = overall["Joe"][0]
+    assert (tim.player, tim.points, tim.starts, tim.how) == ("Tim TE", 22.0, 3, "Free agent")
+    # Joe isn't a playoff team, so Tim's week 3 is the losers' bracket.
+    assert [(r.player, r.points) for r in view.pickups["regular"][""]] == [
+        ("Dan RB", 30.0),
+        ("Tim TE", 13.0),
+    ]
+    assert [(r.player, r.points) for r in view.pickups["losers"][""]] == [("Tim TE", 9.0)]
+    assert view.pickups["winners"][""] == ()
 
-    trade = view.trades[0]
-    sides = {side.person: side for side in trade.sides}
+    sides = {side.person: side for side in view.trades[0].sides}
     assert sides["Eli"].points == 12.0 and sides["Eli"].won
     assert sides["Joe"].points == 8.0 and not sides["Joe"].won
     assert ("Eli", 1, 1, 0) in view.trade_records
 
     bench = {row.person: row for row in view.bench}
     assert bench["Eli"].weeks == 2 and bench["Eli"].left == 10.0 and bench["Eli"].perfect == 1
+    assert bench["Eli"].perfect_pct == "50%"
     assert view.bench_worst[0].person == "Eli" and view.bench_worst[0].left == 10.0
 
+    # Counted from transactions, not ESPN's counters (5 and 2 adds).
     active = {row.person: row for row in view.active}
-    assert active["Eli"].adds == 5 and active["Eli"].faab == 12
+    assert (active["Eli"].adds, active["Eli"].drops, active["Eli"].trades) == (1, 1, 1)
+    assert active["Eli"].faab == 12 and active["Eli"].ir_moves == 1
+    assert (active["Joe"].adds, active["Joe"].trades, active["Joe"].faab) == (1, 1, 0)
 
 
-def test_missing_counters_and_old_seasons() -> None:
+def test_starts_only_count_in_weeks_with_a_game() -> None:
+    # Eli has a bye in week 3, so Ed RB's 12 for Eli that week doesn't count.
+    schedule = [matchup(1, 1, 2), matchup(2, 1, 2), matchup(3, 1, None), matchup(3, 2, 9)]
+    season = read_season(FakeLeague(schedule=schedule), 2023)
+    sides = {side.person: side for side in moves_view({2023: season}).trades[0].sides}
+    assert sides["Eli"].points == 0.0 and sides["Joe"].won
+
+
+def test_old_seasons_and_missing_counters() -> None:
     quiet = read_season(FakeLeague(counters=False), 2023)
-    assert not quiet.counters_kept
-    assert moves_view({2023: quiet}).active == ()
-    old = read_season(FakeLeague(), 2015)
-    assert old.lineups == () and "before 2019" in old.notes[0]
-    assert moves_view({2015: old}).status[0].counters
+    assert not quiet.counters_kept and quiet.weekly
+    assert moves_view({2023: quiet}).active != ()
+    old = read_season(FakeLeague(dead=True), 2015)
+    assert old.lineups == () and not old.weekly
+    assert old.notes == ("ESPN returned no weekly rosters or transactions for this season.",)
+    view = moves_view({2015: old})
+    assert view.status[0].counters
+    assert {row.person: row.adds for row in view.active} == {"Eli": 5, "Joe": 2}
+    nothing = read_season(FakeLeague(counters=False, dead=True), 2014)
+    assert moves_view({2014: nothing}).active == ()
 
 
 def test_a_failed_week_is_noted() -> None:
@@ -244,10 +342,11 @@ def test_snapshot_round_trip() -> None:
 
 def main() -> None:
     test_best_lineup_fills_single_slots_first()
-    test_transactions_keep_executed_pickups_and_trades()
-    test_read_season_lineups_and_dedupes_trades()
+    test_transactions_skip_draft_night_and_keep_executed_moves()
+    test_read_season_stops_at_the_league_end_and_dedupes_trades()
     test_moves_view_numbers()
-    test_missing_counters_and_old_seasons()
+    test_starts_only_count_in_weeks_with_a_game()
+    test_old_seasons_and_missing_counters()
     test_a_failed_week_is_noted()
     test_snapshot_round_trip()
     print("moves ok")

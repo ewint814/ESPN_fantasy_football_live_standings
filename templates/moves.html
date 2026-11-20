@@ -223,6 +223,32 @@
             white-space: nowrap;
         }
 
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .chip {
+            font: inherit;
+            font-size: 0.85em;
+            font-weight: 600;
+            padding: 6px 12px;
+            min-height: 36px;
+            border: 1px solid #ccc;
+            border-radius: 18px;
+            background: white;
+            color: #333;
+            cursor: pointer;
+        }
+
+        .chip[aria-pressed="true"] {
+            background: #333;
+            border-color: #333;
+            color: white;
+        }
+
         details.more summary {
             cursor: pointer;
             font-weight: 600;
@@ -248,7 +274,7 @@
     </div>
 
     <div class="container">
-        <p class="note">Pickups, trades, and lineups from ESPN, which only keeps them from 2019 on. Points are what a player scored while that team started him.</p>
+        <p class="note">Pickups, trades, and lineups from ESPN, through the league's last week. Points are what a player scored while that team started him, in weeks the team had a game.</p>
         {% if loading %}
         <p class="note"><strong>Still loading from ESPN.</strong> Refresh in a minute for more seasons.</p>
         {% endif %}
@@ -343,11 +369,11 @@
             </div>
             {% endif %}
             {% endfor %}
-            <p class="note" style="margin-top:6px">ESPN's season counts. Seasons where ESPN kept none are left out. Tap a column to sort.</p>
+            <p class="note" style="margin-top:6px">Seasons with ESPN's transaction list are counted from it, starting at week 1 kickoff so draft entries don't count. Other seasons use ESPN's season counts, which may include draft entries. IR is always ESPN's count. Tap a column to sort.</p>
         </section>
         {% endif %}
 
-        {% if view.pickups[""] %}
+        {% if view.pickups["overall"][""] %}
         <section class="block" aria-label="Best pickups">
             <div class="section-head">
                 <h2>Best pickups</h2>
@@ -358,8 +384,15 @@
                     {% endfor %}
                 </select>
             </div>
-            {% for key, rows in view.pickups.items() %}
-            <div class="card scroll-x" data-group="pickups" data-key="{{ key }}"{% if key %} hidden{% endif %}>
+            <div class="chips" role="group" aria-label="Pickup weeks">
+                <button type="button" class="chip" data-phase="overall" aria-pressed="true">Overall</button>
+                <button type="button" class="chip" data-phase="regular" aria-pressed="false">Regular season</button>
+                <button type="button" class="chip" data-phase="winners" aria-pressed="false">Winners' bracket</button>
+                <button type="button" class="chip" data-phase="losers" aria-pressed="false">Losers' bracket</button>
+            </div>
+            {% for phase, by_person in view.pickups.items() %}
+            {% for key, rows in by_person.items() %}
+            <div class="card scroll-x" data-group="pickups" data-key="{{ key }}" data-phase="{{ phase }}"{% if key or phase != "overall" %} hidden{% endif %}>
                 {% if rows %}
                 <table class="table">
                     <thead>
@@ -386,11 +419,12 @@
                     </tbody>
                 </table>
                 {% else %}
-                <p class="empty">No pickups.</p>
+                <p class="empty">No pickups started here.</p>
                 {% endif %}
             </div>
             {% endfor %}
-            <p class="note" style="margin-top:6px">Points he scored as a starter for that team, from the week he was picked up until he next changed teams that season, playoffs included.</p>
+            {% endfor %}
+            <p class="note" style="margin-top:6px">Waiver and free-agent adds, not counting adds before week 1 kickoff (the draft). Points he scored as a starter for that team, from the pickup until he was dropped or traded. Bracket side follows the history page: playoff teams are the winners' bracket.</p>
         </section>
         {% endif %}
 
@@ -452,6 +486,7 @@
                             <th data-type="num" title="Best possible lineup minus what was started">Left</th>
                             <th data-type="num">Per wk</th>
                             <th data-type="num" title="Weeks with the best possible lineup">Perfect</th>
+                            <th data-type="num" title="Share of weeks with the best possible lineup">Perfect %</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -462,6 +497,7 @@
                             <td>{{ "{:,.1f}".format(row.left) }}</td>
                             <td>{{ row.per_week }}</td>
                             <td>{{ row.perfect }}</td>
+                            <td>{{ row.perfect_pct }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -486,16 +522,30 @@
                 </table>
             </div>
             {% endif %}
-            <p class="note" style="margin-top:6px">Regular season. The best lineup uses the league's lineup slots and anyone not on IR.</p>
+            <p class="note" style="margin-top:6px">Regular season. The best lineup uses that season's lineup slots and anyone not on IR. Perfect is a week where you started the best lineup.</p>
         </section>
         {% endif %}
     </div>
     <script>
+        let phase = "overall";
+
+        function showGroup(group) {
+            const select = document.querySelector(`.view-pick[data-group="${group}"]`);
+            document.querySelectorAll(`[data-group="${group}"][data-key]`).forEach((block) => {
+                const phaseOk = !block.dataset.phase || block.dataset.phase === phase;
+                block.hidden = block.dataset.key !== select.value || !phaseOk;
+            });
+        }
+
         document.querySelectorAll(".view-pick").forEach((select) => {
-            select.addEventListener("change", () => {
-                document.querySelectorAll(`[data-group="${select.dataset.group}"][data-key]`).forEach((block) => {
-                    block.hidden = block.dataset.key !== select.value;
-                });
+            select.addEventListener("change", () => showGroup(select.dataset.group));
+        });
+
+        document.querySelectorAll(".chip[data-phase]").forEach((chip, _index, chips) => {
+            chip.addEventListener("click", () => {
+                phase = chip.dataset.phase;
+                chips.forEach((other) => other.setAttribute("aria-pressed", String(other === chip)));
+                showGroup("pickups");
             });
         });
 

@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Schmacked">
+    <meta name="theme-color" content="#333333">
+    <title>Schmacked Moves</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #ddd;
+            padding: 24px 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .page-link {
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 24px 20px 40px;
+        }
+
+        .note {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 14px;
+        }
+
+        .block {
+            margin: 0 0 26px;
+        }
+
+        .section-head {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px 12px;
+            margin: 4px 0 10px;
+        }
+
+        h2 {
+            font-size: 1.05em;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .scroll-x {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        select {
+            font: inherit;
+            font-weight: 600;
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background: white;
+            min-height: 40px;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .table th,
+        .table td {
+            padding: 8px 10px;
+            border-bottom: 1px solid #eee;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .table th {
+            font-size: 0.78em;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 600;
+        }
+
+        .table.sortable th {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .table th[aria-sort] {
+            color: #333;
+        }
+
+        .table th.left,
+        .table td.left {
+            text-align: left;
+        }
+
+        .table td:first-child,
+        .table th:first-child {
+            position: sticky;
+            left: 0;
+            background: white;
+            box-shadow: 1px 0 0 #eee;
+        }
+
+        .table td.name {
+            font-weight: 600;
+        }
+
+        .table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .sub {
+            color: #777;
+            font-size: 0.86em;
+            font-weight: 400;
+        }
+
+        .empty {
+            color: #888;
+            font-size: 0.9em;
+            padding: 12px 14px;
+        }
+
+        .trades {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .trade {
+            padding: 10px 12px;
+        }
+
+        .trade-when {
+            font-size: 0.72em;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .side {
+            padding: 6px 0;
+            border-top: 1px solid #eee;
+        }
+
+        .side:first-of-type {
+            border-top: none;
+        }
+
+        .side-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            font-weight: 600;
+        }
+
+        .side.won .side-head {
+            color: #2e7d32;
+        }
+
+        .side-points {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .side-players {
+            list-style: none;
+            color: #666;
+            font-size: 0.86em;
+        }
+
+        .side-players li {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .side-players .pts {
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+
+        .player {
+            white-space: nowrap;
+        }
+
+        details.more summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            padding: 6px 0;
+        }
+
+        .ok { color: #2e7d32; font-weight: 600; }
+        .off { color: #c62828; font-weight: 600; }
+
+        @media (max-width: 768px) {
+            .header { padding: 16px 12px; }
+            .header h1 { font-size: 1.35em; }
+            .container { padding: 12px 12px 28px; }
+            .trades { grid-template-columns: minmax(0, 1fr); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Schmacked Moves</h1>
+        <a class="page-link" href="/">Standings</a> · <a class="page-link" href="/history">History</a>
+    </div>
+
+    <div class="container">
+        <p class="note">Pickups, trades, and lineups from ESPN, which only keeps them from 2019 on. Points are what a player scored while that team started him.</p>
+        {% if loading %}
+        <p class="note"><strong>Still loading from ESPN.</strong> Refresh in a minute for more seasons.</p>
+        {% endif %}
+
+        <section class="block" aria-label="What ESPN has">
+            <div class="section-head"><h2>What ESPN has</h2></div>
+            {% if view.status %}
+            <div class="card scroll-x">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="left">Year</th>
+                            <th title="Season counts of adds, drops, trades">Counts</th>
+                            <th title="Weeks of rosters">Roster wks</th>
+                            <th>Pickups</th>
+                            <th>Trades</th>
+                            <th title="Team-weeks where the starters add up to ESPN's score">Lineup check</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in view.status %}
+                        <tr>
+                            <td class="left name">{{ row.year }}{% if row.year == nfl_year %} <span class="sub">so far</span>{% endif %}</td>
+                            <td>{% if row.counters %}<span class="ok">Yes</span>{% else %}—{% endif %}</td>
+                            <td>{{ row.roster_weeks or "—" }}</td>
+                            <td>{{ row.pickups if row.roster_weeks else "—" }}</td>
+                            <td>{{ row.trades if row.roster_weeks else "—" }}</td>
+                            <td>{% if row.checked %}<span class="{{ 'ok' if row.matched == row.checked else 'off' }}">{{ row.matched }}/{{ row.checked }}</span>{% else %}—{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% set noted = view.status | selectattr("notes") | list %}
+            {% if noted %}
+            <details class="more">
+                <summary>ESPN notes</summary>
+                <ul class="note" style="padding-left:18px">
+                    {% for row in noted %}{% for line in row.notes %}
+                    <li>{{ row.year }}: {{ line }}</li>
+                    {% endfor %}{% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+            {% else %}
+            <div class="card"><p class="empty">Nothing from ESPN yet.</p></div>
+            {% endif %}
+        </section>
+
+        {% if view.active %}
+        <section class="block" aria-label="Most active">
+            <div class="section-head">
+                <h2>Most active</h2>
+                <select class="view-pick" data-group="active" aria-label="Season">
+                    <option value="all">All years</option>
+                    {% for year in view.active_by_year if view.active_by_year[year] %}
+                    <option value="{{ year }}">{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% for key, rows in [("all", view.active)] + (view.active_by_year.items() | list) %}
+            {% if rows %}
+            <div class="card scroll-x" data-group="active" data-key="{{ key }}"{% if key != "all" %} hidden{% endif %}>
+                <table class="table sortable">
+                    <thead>
+                        <tr>
+                            <th class="left" data-type="text">Person</th>
+                            {% if key == "all" %}<th data-type="num" title="Seasons with counts">Yrs</th>{% endif %}
+                            <th data-type="num">Adds</th>
+                            <th data-type="num">Drops</th>
+                            <th data-type="num">Trades</th>
+                            <th data-type="num" title="Moves to injured reserve">IR</th>
+                            <th data-type="num" title="FAAB dollars spent">FAAB</th>
+                            {% if key == "all" %}<th data-type="num">Adds/yr</th>{% endif %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td class="left name">{{ row.person }}</td>
+                            {% if key == "all" %}<td>{{ row.seasons }}</td>{% endif %}
+                            <td>{{ row.adds }}</td>
+                            <td>{{ row.drops }}</td>
+                            <td>{{ row.trades }}</td>
+                            <td>{{ row.ir_moves }}</td>
+                            <td>${{ row.faab }}</td>
+                            {% if key == "all" %}<td>{{ row.adds_per_season }}</td>{% endif %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            {% endfor %}
+            <p class="note" style="margin-top:6px">ESPN's season counts. Seasons where ESPN kept none are left out. Tap a column to sort.</p>
+        </section>
+        {% endif %}
+
+        {% if view.pickups[""] %}
+        <section class="block" aria-label="Best pickups">
+            <div class="section-head">
+                <h2>Best pickups</h2>
+                <select class="view-pick" data-group="pickups" aria-label="Person">
+                    <option value="">Everyone</option>
+                    {% for person in view.people %}
+                    <option value="{{ person }}">{{ person }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% for key, rows in view.pickups.items() %}
+            <div class="card scroll-x" data-group="pickups" data-key="{{ key }}"{% if key %} hidden{% endif %}>
+                {% if rows %}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="left">Player</th>
+                            {% if not key %}<th class="left">Who</th>{% endif %}
+                            <th class="left">When</th>
+                            <th class="left">How</th>
+                            <th title="Points as a starter for that team">Pts</th>
+                            <th>Starts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                        <tr>
+                            <td class="left name">{{ row.player }} <span class="sub">{{ row.position }}</span></td>
+                            {% if not key %}<td class="left">{{ row.person }}</td>{% endif %}
+                            <td class="left">{{ row.year }} wk {{ row.week }}</td>
+                            <td class="left">{{ row.how }}</td>
+                            <td><strong>{{ "%.1f"|format(row.points) }}</strong></td>
+                            <td>{{ row.starts }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty">No pickups.</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+            <p class="note" style="margin-top:6px">Points he scored as a starter for that team, from the week he was picked up until he next changed teams that season, playoffs included.</p>
+        </section>
+        {% endif %}
+
+        {% if view.trades %}
+        <section class="block" aria-label="Trades">
+            <div class="section-head"><h2>Trades</h2></div>
+            <div class="card scroll-x">
+                <table class="table sortable">
+                    <thead>
+                        <tr>
+                            <th class="left" data-type="text">Person</th>
+                            <th data-type="num">Trades</th>
+                            <th data-type="num">Won</th>
+                            <th data-type="num">Lost</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for person, count, won, lost in view.trade_records %}
+                        <tr>
+                            <td class="left name">{{ person }}</td>
+                            <td>{{ count }}</td>
+                            <td>{{ won }}</td>
+                            <td>{{ lost }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="trades">
+                {% for trade in view.trades %}
+                <div class="card trade">
+                    <div class="trade-when">{{ trade.year }} · week {{ trade.week }}</div>
+                    {% for side in trade.sides %}
+                    <div class="side{% if side.won %} won{% endif %}">
+                        <div class="side-head"><span>{{ side.person }} got</span><span class="side-points">{{ "%.1f"|format(side.points) }}</span></div>
+                        <ul class="side-players">
+                            {% for name, points, starts in side.players %}
+                            <li><span class="player">{{ name }}</span><span class="pts">{{ "%.1f"|format(points) }} · {{ starts }} st</span></li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+            <p class="note" style="margin-top:6px">Each side's points from the players it got, as starters, for the rest of that season. More points wins the trade.</p>
+        </section>
+        {% endif %}
+
+        {% if view.bench %}
+        <section class="block" aria-label="Bench points">
+            <div class="section-head"><h2>Bench points</h2></div>
+            <div class="card scroll-x">
+                <table class="table sortable">
+                    <thead>
+                        <tr>
+                            <th class="left" data-type="text">Person</th>
+                            <th data-type="num">Weeks</th>
+                            <th data-type="num" title="Best possible lineup minus what was started">Left</th>
+                            <th data-type="num">Per wk</th>
+                            <th data-type="num" title="Weeks with the best possible lineup">Perfect</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in view.bench %}
+                        <tr>
+                            <td class="left name">{{ row.person }}</td>
+                            <td>{{ row.weeks }}</td>
+                            <td>{{ "{:,.1f}".format(row.left) }}</td>
+                            <td>{{ row.per_week }}</td>
+                            <td>{{ row.perfect }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if view.bench_worst %}
+            <h2 style="margin:14px 0 8px">Worst weeks</h2>
+            <div class="card scroll-x">
+                <table class="table">
+                    <thead><tr><th class="left">Person</th><th class="left">When</th><th>Started</th><th>Best</th><th>Left</th></tr></thead>
+                    <tbody>
+                        {% for week in view.bench_worst %}
+                        <tr>
+                            <td class="left name">{{ week.person }}</td>
+                            <td class="left">{{ week.year }} wk {{ week.week }}</td>
+                            <td>{{ "%.1f"|format(week.actual) }}</td>
+                            <td>{{ "%.1f"|format(week.best) }}</td>
+                            <td><strong>{{ "%.1f"|format(week.left) }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% endif %}
+            <p class="note" style="margin-top:6px">Regular season. The best lineup uses the league's lineup slots and anyone not on IR.</p>
+        </section>
+        {% endif %}
+    </div>
+    <script>
+        document.querySelectorAll(".view-pick").forEach((select) => {
+            select.addEventListener("change", () => {
+                document.querySelectorAll(`[data-group="${select.dataset.group}"][data-key]`).forEach((block) => {
+                    block.hidden = block.dataset.key !== select.value;
+                });
+            });
+        });
+
+        document.querySelectorAll(".table.sortable").forEach((table) => {
+            const headers = table.querySelectorAll("th");
+            headers.forEach((th, column) => {
+                th.addEventListener("click", () => {
+                    const body = table.tBodies[0];
+                    const rows = Array.from(body.rows);
+                    const text = th.dataset.type === "text";
+                    const wasLow = th.getAttribute("aria-sort") === "ascending";
+                    const sorted = th.hasAttribute("aria-sort");
+                    const ascending = sorted ? !wasLow : text;
+                    headers.forEach((other) => other.removeAttribute("aria-sort"));
+                    th.setAttribute("aria-sort", ascending ? "ascending" : "descending");
+                    const value = (row) => {
+                        const cell = row.cells[column].textContent.trim();
+                        return text ? cell : parseFloat(cell.replace(/[$,]/g, "")) || 0;
+                    };
+                    rows.sort((a, b) => {
+                        const x = value(a);
+                        const y = value(b);
+                        const order = text ? x.localeCompare(y) : x - y;
+                        return ascending ? order : -order;
+                    });
+                    rows.forEach((row) => body.appendChild(row));
+                });
+            });
+        });
+    </script>
+</body>
+</html>

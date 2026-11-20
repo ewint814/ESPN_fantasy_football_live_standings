@@ -242,6 +242,25 @@ def test_history() -> bool:
         assert 'class="record-top" hidden' in full
         assert 'id="foesData"' in full and "Kryptonite" in full
         assert full.count('class="toggle-btn') == 0
+        assert 'href="/moves"' in full
+
+        from league_moves import moves_view, read_season
+        from test_moves import FakeLeague
+
+        with app.app_context():
+            empty_moves = render_template(
+                "moves.html", view=moves_view({}), loading=True, nfl_year=2026
+            )
+            moves_page = render_template(
+                "moves.html",
+                view=moves_view({2023: read_season(FakeLeague(), 2023)}),
+                loading=False,
+                nfl_year=2026,
+            )
+        assert "Nothing from ESPN yet" in empty_moves and "Still loading" in empty_moves
+        for heading in ("Most active", "Best pickups", "Trades", "Bench points", "Worst weeks"):
+            assert f"<h2>{heading}</h2>" in moves_page or f">{heading}</h2>" in moves_page
+        assert "Dan RB" in moves_page and "Waiver $12" in moves_page
 
         dashboard = _render_scores(_sample_scores(12))
         assert dashboard.count('class="toggle-btn') == 2

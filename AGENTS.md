@@ -13,7 +13,8 @@ Events, no page reloads. Private league. Phone-first UI.
 ## Test & lint
 
 - Tests run as scripts: `python tests/test_app.py`, `python tests/test_game_status.py`,
- `python tests/test_bracket.py`, `python tests/test_stats.py`, `python tests/test_visit_log.py`
+ `python tests/test_bracket.py`, `python tests/test_stats.py`, `python tests/test_visit_log.py`,
+ `python tests/test_moves.py`
 - Do NOT use pytest coverage as configured — `pyproject.toml` still points it
   at a `src/` tree that doesn't exist. Flat layout, no `src/` package. Ever.
 - Ruff: line length 100, target py311 (isort + bugbear on, E501 ignored).

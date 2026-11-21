@@ -82,36 +82,6 @@
             color: #888;
         }
 
-        .homescreen-box {
-            background: #eef6ff;
-            border: 1px solid #b6d4fe;
-            border-radius: 6px;
-            padding: 12px 14px;
-            margin-bottom: 14px;
-            text-align: left;
-            font-size: 0.9em;
-            color: #084298;
-            line-height: 1.45;
-        }
-
-        .homescreen-box button {
-            margin-top: 8px;
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 14px;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .story-link {
-            display: inline-block;
-            margin-top: 6px;
-            color: #084298;
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
         .kickoff-time {
             color: #888;
             font-weight: 500;
@@ -272,7 +242,6 @@
         }
 
         .players-cell {
-            max-width: 300px;
             overflow-wrap: break-word;
             word-break: normal;
             hyphens: none;
@@ -291,9 +260,13 @@
             font-weight: 600;
         }
 
+        /* One player per line, never split across lines */
         .player-entry {
-            display: inline;
+            display: block;
+            white-space: nowrap;
         }
+
+        .player-sep { display: none; }
 
         .no-players {
             font-style: italic;
@@ -349,7 +322,6 @@
             .container { padding: 12px; }
             .toggle-container { gap: 8px; margin-bottom: 14px; }
             .toggle-btn { flex: 1; padding: 10px 12px; }
-            .homescreen-box { font-size: 0.82em; padding: 10px 12px; }
 
             /* Stack each standings row so names don't shatter in skinny columns */
             .standings thead { display: none; }
@@ -452,10 +424,9 @@
                 margin-bottom: 2px;
             }
             .player-entry {
-                display: block;
                 padding: 1px 0;
+                white-space: normal;
             }
-            .player-sep { display: none; }
             .no-players { white-space: normal; }
         }
     </style>
@@ -551,7 +522,6 @@
 
         let previousLiveScores = {};
         let previousProjectedScores = {};
-        let deferredInstallPrompt = null;
 
         function directionFlash(current, previous) {
             if (typeof previous !== 'number') return '';
@@ -688,20 +658,6 @@
             });
         }
 
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredInstallPrompt = e;
-            const btn = document.getElementById('installAppBtn');
-            if (btn) btn.style.display = 'inline-block';
-        });
-
-        async function installApp() {
-            if (!deferredInstallPrompt) return;
-            deferredInstallPrompt.prompt();
-            await deferredInstallPrompt.userChoice;
-            deferredInstallPrompt = null;
-        }
-
         // Show error if loading takes too long
         let loadingStartTime = Date.now();
         setTimeout(function() {
@@ -758,13 +714,6 @@
     </div>
 
     <div class="container">
-        <div class="homescreen-box">
-            <strong>Add to Home Screen</strong> — iPhone: Share → Add to Home Screen. Android: use the button if it appears, or browser menu → Install / Add to Home screen.
-            <br>
-            <a class="story-link" href="https://www.instagram.com/stories/gabsmook/" target="_blank" rel="noopener noreferrer">smooks story</a>
-            <br>
-            <button type="button" id="installAppBtn" onclick="installApp()" style="display:none;">Install app</button>
-        </div>
         {% if scores %}
         <div class="toggle-container">
             <button id="currentBtn" class="toggle-btn active" onclick="showCurrent()">Current Standings</button>

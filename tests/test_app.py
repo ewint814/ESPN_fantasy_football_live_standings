@@ -197,8 +197,8 @@ def test_history() -> bool:
         assert "Joined: Yossi" in page
         rows = page.split('class="plate-row"')[1:]
         assert len(rows) == 15
-        assert "2011" in rows[0] and "Eli" in rows[0]
-        assert "2025" in rows[-1] and "Bergel" in rows[-1]
+        assert "2025" in rows[0] and "Bergel" in rows[0]
+        assert "2011" in rows[-1] and "Eli" in rows[-1]
         assert page.count('class="screw ') == 4
         tally = page.split('aria-label="Championships by person"', 1)[1].split("</ul>", 1)[0]
         assert tally.count("<li>") == 7
@@ -213,7 +213,7 @@ def test_history() -> bool:
                 seasons=season_views(),
                 titles={2025: Title(2025, "Club Bergel", "Bergel Last", True)},
             )
-        bergel_row = engraved.split('class="plate-row"')[-1]
+        bergel_row = engraved.split('class="plate-row"')[1]
         assert "Club Bergel" in bergel_row and "Bergel" in bergel_row
         assert "plate-owner" in bergel_row
         assert "Walk check" not in engraved

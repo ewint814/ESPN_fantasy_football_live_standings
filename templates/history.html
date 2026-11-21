@@ -815,7 +815,7 @@
                 <div class="plate-frame">
                     <p class="plate-kicker">Schmacked</p>
                     <div class="plate-rule"></div>
-                    {% for season in seasons|reverse %}
+                    {% for season in seasons %}
                     {% set found = (titles or {}).get(season.year) %}
                     <div class="plate-row">
                         <span class="plate-year">{{ season.year }}</span>
@@ -863,8 +863,8 @@
                             <th data-type="num" title="Regular-season win share">Pct</th>
                             <th data-type="num" title="Regular-season points">Points</th>
                             <th data-type="num" title="Winners' bracket trips">Playoffs</th>
-                            <th data-type="num" title="Weeks as the top scorer">Top wk</th>
-                            <th data-type="num" title="Weeks as the low scorer">Low wk</th>
+                            <th data-type="num" title="Weeks with the league's highest score">Top scores</th>
+                            <th data-type="num" title="Weeks with the league's lowest score">Low scores</th>
                         </tr>
                     </thead>
                     <tbody>

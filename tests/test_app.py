@@ -199,7 +199,7 @@ def test_history() -> bool:
         assert len(rows) == 15
         assert "2025" in rows[0] and "Bergel" in rows[0]
         assert "2011" in rows[-1] and "Eli" in rows[-1]
-        assert page.count('class="screw ') == 4
+        assert 'class="trophy-ball"' in page
         tally = page.split('aria-label="Championships by person"', 1)[1].split("</ul>", 1)[0]
         assert tally.count("<li>") == 7
         assert "Eli" in tally and ">5<" in tally

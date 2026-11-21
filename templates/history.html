@@ -82,7 +82,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin: 4px auto 0;
+            margin: 4px auto 26px;
             width: min(100%, 400px);
         }
 
@@ -175,32 +175,8 @@
             opacity: 0.75;
         }
 
-        .tally-label {
-            text-align: center;
-            font-size: 0.72em;
-            font-weight: 600;
-            letter-spacing: 0.16em;
-            text-transform: uppercase;
-            color: #888;
-            margin: 14px 0 8px;
-        }
-
-        .tally {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 4px 16px;
-            list-style: none;
-            max-width: 640px;
-            margin: 0 auto 26px;
-            padding: 0;
-            font-size: 0.95em;
-        }
-
-        .tally-count {
-            font-variant-numeric: tabular-nums;
-            font-weight: 650;
-            margin-left: 4px;
+        .career-filter {
+            margin-bottom: 8px;
         }
 
         .seasons {
@@ -790,8 +766,6 @@
     </div>
 
     <div class="container">
-        <p class="note">Final places from the league sheet. The middle places for 2012–2018 come from replaying each playoff bracket with ESPN scores.</p>
-
         <section class="trophy" aria-label="Champions">
             <svg class="trophy-ball" viewBox="0 0 120 130" aria-hidden="true">
                 <defs>
@@ -829,12 +803,6 @@
             <div class="trophy-foot" aria-hidden="true"></div>
         </section>
 
-        <p class="tally-label">By person</p>
-        <ul class="tally" aria-label="Championships by person">
-            {% for ring in rings %}
-            <li><span class="tally-name">{{ ring.name }}</span><span class="tally-count">{{ ring.count }}</span></li>
-            {% endfor %}
-        </ul>
 
 
         {% if stats and stats.loaded < season_count %}
@@ -844,6 +812,10 @@
         {% if stats and stats.careers %}
         <section class="block" aria-label="Careers">
             <div class="section-head"><h2>Careers</h2></div>
+            <div class="chips career-filter" role="group" aria-label="Who to show">
+                <button type="button" class="chip" data-who="all" aria-pressed="true">Everybody</button>
+                <button type="button" class="chip" data-who="active" aria-pressed="false">Active owners</button>
+            </div>
             <div class="card scroll-x">
                 <table class="career" id="careerTable">
                     <thead>
@@ -852,19 +824,20 @@
                             <th data-type="num" title="Seasons played">Yrs</th>
                             <th data-type="num">Titles</th>
                             <th data-type="num" title="Last place">Sackos</th>
-                            <th data-type="num" title="Average finish, lower is better">Avg</th>
-                            <th data-type="num">Best</th>
+                            <th data-type="num" data-low="1" title="Average finish, lower is better">Avg finish</th>
+                            <th data-type="num" data-low="1">Best finish</th>
                             <th data-type="num" title="Regular-season record">Record</th>
                             <th data-type="num" title="Regular-season win share">Pct</th>
-                            <th data-type="num" title="Regular-season points">Points</th>
+                            <th data-type="num" title="Regular-season points scored">Points for</th>
+                            <th data-type="num" title="Regular-season points scored against">Points against</th>
                             <th data-type="num" title="Winners' bracket trips">Playoffs</th>
-                            <th data-type="num" title="Weeks with the league's highest score">Top scores</th>
-                            <th data-type="num" title="Weeks with the league's lowest score">Low scores</th>
+                            <th data-type="num" title="Weeks with the league's highest score">Top wk score</th>
+                            <th data-type="num" title="Weeks with the league's lowest score">Low wk score</th>
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in stats.careers %}
-                        <tr>
+                        <tr{% if row.active %} data-active="1"{% endif %}>
                             <td>{{ row.person }}</td>
                             <td data-v="{{ row.seasons }}">{{ row.seasons }}</td>
                             <td data-v="{{ row.titles }}">{% if row.titles %}<span class="rings">{{ "●" * row.titles }}</span>{% else %}0{% endif %}</td>
@@ -874,6 +847,7 @@
                             <td data-v="{{ row.wins }}">{{ row.record }}</td>
                             <td data-v="{{ row.win_pct if row.win_pct != '—' else 0 }}">{{ row.win_pct }}</td>
                             <td data-v="{{ row.points_for }}">{{ "{:,.1f}".format(row.points_for) }}</td>
+                            <td data-v="{{ row.points_against }}">{{ "{:,.1f}".format(row.points_against) }}</td>
                             <td data-v="{{ row.playoffs }}">{{ row.playoffs }}</td>
                             <td data-v="{{ row.highs }}">{{ row.highs }}</td>
                             <td data-v="{{ row.lows }}">{{ row.lows }}</td>
@@ -882,7 +856,7 @@
                     </tbody>
                 </table>
             </div>
-            <p class="note" style="margin-top:6px">Titles, Sackos, and finishes are from the sheet. Records, points, playoffs, and weekly highs and lows are the regular season on ESPN. Tap a column to sort.</p>
+            <p class="note" style="margin-top:6px">Titles, Sackos, and finishes come from each season's playoff bracket. Records, points, playoffs, and weekly highs and lows are the regular season. Active owners are in this season's league. Tap a column to sort.</p>
         </section>
         {% endif %}
 
@@ -1088,7 +1062,7 @@
                     const body = careerTable.tBodies[0];
                     const rows = Array.from(body.rows);
                     const text = th.dataset.type === "text";
-                    const lowFirst = text || th.textContent.trim() === "Avg" || th.textContent.trim() === "Best";
+                    const lowFirst = text || th.dataset.low === "1";
                     const flip = th.getAttribute("aria-sort") === "ascending" || th.getAttribute("aria-sort") === "descending";
                     const wasLow = th.getAttribute("aria-sort") === "ascending";
                     const ascending = flip ? !wasLow : lowFirst;
@@ -1105,6 +1079,16 @@
                         return ascending ? order : -order;
                     });
                     rows.forEach((row) => body.appendChild(row));
+                });
+            });
+            const whoChips = document.querySelectorAll(".career-filter .chip");
+            whoChips.forEach((chip) => {
+                chip.addEventListener("click", () => {
+                    whoChips.forEach((other) => other.setAttribute("aria-pressed", String(other === chip)));
+                    const activeOnly = chip.dataset.who === "active";
+                    Array.from(careerTable.tBodies[0].rows).forEach((row) => {
+                        row.hidden = activeOnly && row.dataset.active !== "1";
+                    });
                 });
             });
         }

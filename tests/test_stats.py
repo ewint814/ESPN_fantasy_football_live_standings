@@ -74,6 +74,15 @@ def test_careers_use_the_sheet_for_titles_and_sackos() -> None:
     assert rows["Eli"].playoffs == 1 and rows["Noam"].playoffs == 0
     # 2014's 10th place is Eli now that the walk filled it.
     assert rows["Eli"].sackos >= 1
+    # Regular-season points scored against, playoff games left out.
+    assert (rows["Eli"].points_against, rows["Joe"].points_against) == (170.0, 200.0)
+    assert rows["Noam"].points_against == 210.0
+    # Active defaults to the newest season's people.
+    assert rows["Eli"].active and not rows["Austin"].active
+    only = {
+        row.person: row for row in careers({2019: tiny_season(2019)}, active=frozenset({"Joe"}))
+    }
+    assert only["Joe"].active and not only["Eli"].active
 
 
 def test_league_records() -> None:

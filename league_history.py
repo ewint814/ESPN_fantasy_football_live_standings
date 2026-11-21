@@ -1,17 +1,21 @@
-"""Final places from the league sheet.
+"""Final places: ESPN's scores replayed through the league's bracket, else the league sheet.
 
-The sheet is the record of who finished where. ESPN's default final
-rankings do not match this league's losers' bracket, so they are not used.
+ESPN's default final rankings do not match this league's losers' bracket, so
+they are not used. Replaying each playoff with ESPN's scores (espn_history)
+gives every place from 2012 on, and matches the sheet for 2012-2025. ESPN has
+no 2011 playoff games, so 2011 comes from the sheet. New seasons come from
+ESPN once their playoffs finish.
 
-The sheet left most middle places blank for 2012 through 2018. Those
-come from replaying each year's playoff bracket with ESPN's scores, and
-Eli checked them. The sheet had Bergel in both 1st and 10th for 2016; the
-replay puts Yossi 10th. For 2014 the replay puts Jared 8th and Eli 10th,
-which Eli confirmed. A Harry cell sits in the 2011
-column with no place next to it, so it is not a finish.
+The sheet left most middle places blank for 2012 through 2018; the replay
+filled them in, and Eli checked them. The sheet had Bergel in both 1st and
+10th for 2016; the replay puts Yossi 10th. For 2014 the replay puts Jared 8th
+and Eli 10th, which Eli confirmed. A Harry cell sits in the 2011 column with
+no place next to it, so it is not a finish.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 # Career-table order on the Stats tab. Rings are sorted by count, then this.
 SHEET_ORDER: tuple[str, ...] = (
@@ -281,7 +285,42 @@ def _rows(places: tuple[str | None, ...]) -> tuple[PlaceRow, ...]:
     return tuple(rows)
 
 
-def season_views() -> tuple[SeasonView, ...]:
+def _espn_places(title: Any) -> tuple[str, ...] | None:
+    """Every place from a replayed bracket as sheet names, or None if any place is missing."""
+    rows = sorted(getattr(title, "places", ()) or ())
+    if not rows or [place for place, _club, _owner in rows] != list(range(1, len(rows) + 1)):
+        return None
+    return tuple(sheet_name_for(owner) or owner for _place, _club, owner in rows)
+
+
+def finishes(titles: Mapping[int, Any]) -> tuple[Season, ...]:
+    """Final places for every season, newest first.
+
+    A season ESPN's bracket replay placed in full uses that; otherwise the sheet.
+    Seasons only ESPN has list everyone not seen in an earlier season as joined.
+    """
+    sheet = {season.year: season for season in SEASONS}
+    places: dict[int, tuple[str | None, ...]] = {
+        year: season.places for year, season in sheet.items()
+    }
+    for year, title in titles.items():
+        found = _espn_places(title)
+        if found and len(found) >= len(places.get(year, ())):
+            places[year] = found
+    seasons: list[Season] = []
+    seen: set[str] = set()
+    for year in sorted(places):
+        names = places[year]
+        if year in sheet:
+            joined = sheet[year].joined
+        else:
+            joined = tuple(name for name in names if name and name not in seen)
+        seen.update(name for name in names if name)
+        seasons.append(Season(year, names, joined))
+    return tuple(reversed(seasons))
+
+
+def season_views(seasons: tuple[Season, ...] = SEASONS) -> tuple[SeasonView, ...]:
     """Season cards, newest first."""
     return tuple(
         SeasonView(
@@ -290,15 +329,22 @@ def season_views() -> tuple[SeasonView, ...]:
             season.joined,
             season.places[0] if season.places else None,
         )
-        for season in SEASONS
+        for season in seasons
     )
 
 
-def ring_counts() -> tuple[Ring, ...]:
+def active_people(seasons: tuple[Season, ...] = SEASONS) -> frozenset[str]:
+    """Everyone with a place in the newest season."""
+    if not seasons:
+        return frozenset()
+    return frozenset(name for name in seasons[0].places if name)
+
+
+def ring_counts(seasons: tuple[Season, ...] = SEASONS) -> tuple[Ring, ...]:
     """Championships, most rings first, then the sheet's career order."""
     counts: dict[str, int] = {}
     years: dict[str, list[int]] = {}
-    for season in reversed(SEASONS):
+    for season in reversed(seasons):
         title = season.places[0] if season.places else None
         if not title:
             continue

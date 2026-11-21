@@ -21,8 +21,8 @@ import pytz
 
 # Import local modules
 from config import Config
-from espn_history import dump_snapshot, load_season, load_snapshot
-from league_history import SEASONS, ring_counts, season_views
+from espn_history import _person, dump_snapshot, load_season, load_snapshot
+from league_history import SEASONS, active_people, finishes, season_views
 from league_moves import dump_moves, load_moves, load_moves_snapshot, moves_view
 from league_stats import stats_view
 from nfl_utils import NFLSeasonHelper
@@ -830,13 +830,15 @@ class FantasyTracker:
 
         @self.app.route('/history')
         def history() -> str:
+            final_places = finishes(self.espn_titles)
             return render_template(
                 'history.html',
-                rings=ring_counts(),
-                seasons=season_views(),
+                seasons=season_views(final_places),
                 titles=self.espn_titles,
-                stats=stats_view(self.espn_records),
-                season_count=len(SEASONS),
+                stats=stats_view(
+                    self.espn_records, final_places, self._active_owners(final_places)
+                ),
+                season_count=len(final_places),
             )
 
         @self.app.route('/history/data.json')
@@ -919,12 +921,40 @@ class FantasyTracker:
                 'real_time': True
             }), status_code
 
+    def _active_owners(self, final_places: Any) -> frozenset[str]:
+        """People in this season's league, or the newest finished season's if ESPN is down."""
+        league = self.league
+        if league is not None and getattr(league, 'teams', None):
+            return frozenset(_person(team) for team in league.teams)
+        return active_people(final_places)
+
     def _load_espn_history_then_moves(self) -> None:
         self._load_espn_history()
         self._load_espn_moves()
         while True:
             time.sleep(MOVES_REFRESH_SECONDS)
             self._load_moves_year(self.nfl_year)
+            self._load_history_year(self.nfl_year)
+
+    def _load_history_year(self, year: int) -> None:
+        """This season's final places, once ESPN has every playoff game.
+
+        Until then nothing is kept, so career totals stay on finished seasons.
+        """
+        if year in self.espn_titles and self.espn_titles[year].places:
+            return
+        if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
+            return
+        title, record = load_season(
+            int(self.config.espn_league_id),
+            self.config.espn_s2,
+            self.config.espn_swid,
+            year,
+        )
+        if title is None or not title.places or record is None:
+            return
+        self.espn_titles = {**self.espn_titles, year: title}
+        self.espn_records = {**self.espn_records, year: record}
 
     def _load_moves_year(self, year: int) -> None:
         if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
@@ -976,19 +1006,21 @@ class FantasyTracker:
         if not self.config.espn_league_id or not self.config.espn_s2 or not self.config.espn_swid:
             return
         try:
-            for season in SEASONS:
-                if season.year in self.espn_records:
+            first = min(season.year for season in SEASONS)
+            for year in range(first, self.nfl_year):
+                if year in self.espn_records:
                     continue
                 title, record = load_season(
                     int(self.config.espn_league_id),
                     self.config.espn_s2,
                     self.config.espn_swid,
-                    season.year,
+                    year,
                 )
                 if title is not None:
-                    self.espn_titles = {**self.espn_titles, season.year: title}
+                    self.espn_titles = {**self.espn_titles, year: title}
                 if record is not None:
-                    self.espn_records = {**self.espn_records, season.year: record}
+                    self.espn_records = {**self.espn_records, year: record}
+            self._load_history_year(self.nfl_year)
             logger.info("ESPN history loaded for %s seasons", len(self.espn_records))
         except Exception as exc:
             logger.warning("ESPN history failed: %s", exc)

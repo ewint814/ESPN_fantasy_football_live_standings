@@ -13,7 +13,7 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from league_history import SEASONS, SHEET_ORDER
+from league_history import SEASONS, SHEET_ORDER, Season, active_people
 
 KINDS = ("overall", "regular", "winners", "losers")
 
@@ -165,6 +165,8 @@ class CareerRow:
     playoffs: int
     highs: int
     lows: int
+    points_against: float = 0.0
+    active: bool = False
 
     @property
     def record(self) -> str:
@@ -185,13 +187,23 @@ def _ordinal(place: int) -> str:
     return f"{place}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(place % 10, 'th') }"
 
 
-def careers(records: dict[int, SeasonRecord]) -> tuple[CareerRow, ...]:
-    """Sheet finishes for every person, plus ESPN's regular-season numbers."""
+def careers(
+    records: dict[int, SeasonRecord],
+    final_places: tuple[Season, ...] = SEASONS,
+    active: frozenset[str] | None = None,
+) -> tuple[CareerRow, ...]:
+    """Final places for every person, plus ESPN's regular-season numbers.
+
+    `active` is who is in the league now; it defaults to the newest season's people.
+    """
+    if active is None:
+        active = active_people(final_places)
     finishes: dict[str, list[int]] = defaultdict(list)
     titles: dict[str, int] = defaultdict(int)
     sackos: dict[str, int] = defaultdict(int)
     seasons: dict[str, set[int]] = defaultdict(set)
-    for season in SEASONS:
+    against: dict[str, float] = defaultdict(float)
+    for season in final_places:
         named = [name for name in season.places if name]
         last_place = len(season.places)
         for place, name in enumerate(season.places, start=1):
@@ -213,6 +225,12 @@ def careers(records: dict[int, SeasonRecord]) -> tuple[CareerRow, ...]:
             line[3] += team.points_for
             line[4] += 1 if team.seed else 0
             seasons[team.person].add(record.year)
+        people = _people(record)
+        for game in record.games:
+            if game.kind != "regular":
+                continue
+            against[people.get(game.home, "?")] += game.away_score
+            against[people.get(game.away, "?")] += game.home_score
         for week in weekly_extremes(record):
             for name in week.high.split(" & "):
                 totals[name][5] += 1
@@ -237,6 +255,8 @@ def careers(records: dict[int, SeasonRecord]) -> tuple[CareerRow, ...]:
                 int(line[4]),
                 int(line[5]),
                 int(line[6]),
+                round(against.get(person, 0.0), 1),
+                person in active,
             )
         )
     return tuple(rows)
@@ -584,7 +604,11 @@ class StatsView:
     kryptonite_min_games: int = KRYPTONITE_MIN_GAMES
 
 
-def stats_view(records: dict[int, SeasonRecord]) -> StatsView:
+def stats_view(
+    records: dict[int, SeasonRecord],
+    final_places: tuple[Season, ...] = SEASONS,
+    active: frozenset[str] | None = None,
+) -> StatsView:
     board = head_to_head(records)
     people = tuple(sorted(board, key=_person_order))
     extras = {
@@ -597,7 +621,7 @@ def stats_view(records: dict[int, SeasonRecord]) -> StatsView:
     }
     by_view = records_board(records)
     return StatsView(
-        careers(records),
+        careers(records, final_places, active),
         by_view["all"]["regular"].records,
         json.dumps(board, sort_keys=True).replace("<", "\\u003c"),
         people,

@@ -77,116 +77,102 @@
             padding: 8px 0;
         }
 
-        .plate-wrap {
+        /* Champions trophy: gold football on a wood base, a brass plate per season */
+        .trophy {
             display: flex;
-            justify-content: center;
-            margin-bottom: 0;
+            flex-direction: column;
+            align-items: center;
+            margin: 4px auto 0;
+            width: min(100%, 400px);
         }
 
-        .plate {
-            position: relative;
-            width: min(100%, 420px);
-            background: #171717;
-            color: #efece4;
+        .trophy-ball {
+            display: block;
+            width: 110px;
+            height: 120px;
+            margin-bottom: -2px;
+            filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.25));
+        }
+
+        .trophy-base {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 14px 12px 16px;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #3b2214, #6a3f22 30%, #7b4a28 50%, #5a341c 75%, #3b2214);
+            box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.12), 0 6px 14px rgba(0, 0, 0, 0.25);
+        }
+
+        .trophy-foot {
+            width: calc(100% + 24px);
+            max-width: calc(100vw - 16px);
+            height: 16px;
+            margin-top: -1px;
+            border-radius: 0 0 4px 4px;
+            background: linear-gradient(90deg, #2c180d, #4e2e19 50%, #2c180d);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .plate-kicker,
+        .plate-row {
+            background: linear-gradient(180deg, #f3d98b, #c99a32 55%, #a87b1e);
+            color: #3a2706;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 1px 2px rgba(0, 0, 0, 0.5);
+            font-family: Palatino, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+            text-align: center;
             border-radius: 2px;
-            padding: 22px 18px 18px;
-            box-shadow:
-                inset 0 1px 0 rgba(255, 255, 255, 0.14),
-                0 12px 28px rgba(0, 0, 0, 0.16);
         }
-
-        .plate-frame {
-            border: 1px solid rgba(239, 236, 228, 0.28);
-            padding: 18px 16px 14px;
-        }
-
-        .screw {
-            position: absolute;
-            width: 9px;
-            height: 9px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 35% 30%, #7a7a7a, #2a2a2a 58%, #111 70%);
-            box-shadow: inset 0 0 0 0.5px #000, 0 1px 0 rgba(255, 255, 255, 0.15);
-        }
-
-        .screw::after {
-            content: "";
-            position: absolute;
-            left: 1px;
-            right: 1px;
-            top: 4px;
-            height: 1px;
-            background: #141414;
-            transform: rotate(28deg);
-        }
-
-        .screw-tl { top: 8px; left: 8px; }
-        .screw-tr { top: 8px; right: 8px; }
-        .screw-bl { bottom: 8px; left: 8px; }
-        .screw-br { bottom: 8px; right: 8px; }
 
         .plate-kicker {
-            text-align: center;
-            font-family: Palatino, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-            font-size: 0.78em;
-            font-weight: 600;
-            letter-spacing: 0.42em;
+            width: 70%;
+            margin: 0 auto 12px;
+            padding: 6px 0 6px 0.3em;
+            font-size: 0.82em;
+            font-weight: 700;
+            letter-spacing: 0.3em;
             text-transform: uppercase;
-            color: #d9d4c8;
-            margin: 0 0 12px;
-            padding-left: 0.42em;
         }
 
-        .plate-rule {
-            height: 1px;
-            background: rgba(239, 236, 228, 0.28);
-            margin: 0 8px 12px;
+        .plate-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 7px;
         }
 
         .plate-row {
             display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 3px 4px;
-            font-family: Palatino, "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 46px;
+            padding: 6px 4px;
+            overflow-wrap: break-word;
         }
 
         .plate-year,
         .plate-name,
         .plate-owner {
-            letter-spacing: 0.08em;
+            display: block;
             text-transform: uppercase;
         }
 
-        .plate-stack {
-            text-align: right;
-            max-width: 16em;
-        }
-
         .plate-year {
-            color: #c8c3b8;
+            font-weight: 700;
+            font-size: 0.8em;
+            letter-spacing: 0.08em;
             font-variant-numeric: tabular-nums;
-            font-size: 0.84em;
-            white-space: nowrap;
-        }
-
-        .plate-leader {
-            flex: 1 1 auto;
-            border-bottom: 1px dotted rgba(239, 236, 228, 0.38);
-            transform: translateY(-4px);
         }
 
         .plate-name {
-            font-size: 1.02em;
-            text-align: right;
+            font-size: 0.62em;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
         }
 
         .plate-owner {
-            display: block;
             margin-top: 1px;
-            font-size: 0.72em;
-            letter-spacing: 0.06em;
-            color: #b7b2a6;
+            font-size: 0.56em;
+            letter-spacing: 0.12em;
+            opacity: 0.75;
         }
 
         .tally-label {
@@ -789,8 +775,8 @@
             .header h1 { font-size: 1.35em; }
             .container { padding: 12px 12px 28px; }
             .seasons { grid-template-columns: minmax(0, 1fr); }
-            .plate { padding: 16px 12px 14px; }
-            .plate-frame { padding: 14px 12px 10px; }
+            .trophy-base { padding: 12px 8px 14px; }
+            .plate-grid { gap: 5px; }
             .records { grid-template-columns: 1fr 1fr; }
             .record-value { font-size: 1.35em; }
             .foes { grid-template-columns: minmax(0, 1fr); }
@@ -806,33 +792,42 @@
     <div class="container">
         <p class="note">Final places from the league sheet. The middle places for 2012–2018 come from replaying each playoff bracket with ESPN scores.</p>
 
-        <div class="plate-wrap">
-            <section class="plate" aria-label="Champions">
-                <span class="screw screw-tl" aria-hidden="true"></span>
-                <span class="screw screw-tr" aria-hidden="true"></span>
-                <span class="screw screw-bl" aria-hidden="true"></span>
-                <span class="screw screw-br" aria-hidden="true"></span>
-                <div class="plate-frame">
-                    <p class="plate-kicker">Schmacked</p>
-                    <div class="plate-rule"></div>
+        <section class="trophy" aria-label="Champions">
+            <svg class="trophy-ball" viewBox="0 0 120 130" aria-hidden="true">
+                <defs>
+                    <linearGradient id="trophy-gold" x1="0" x2="1">
+                        <stop offset="0" stop-color="#8a6416"/>
+                        <stop offset=".35" stop-color="#f6d77a"/>
+                        <stop offset=".55" stop-color="#d9a92e"/>
+                        <stop offset="1" stop-color="#7a5510"/>
+                    </linearGradient>
+                </defs>
+                <ellipse cx="60" cy="40" rx="46" ry="26" transform="rotate(-25 60 40)" fill="url(#trophy-gold)"/>
+                <path d="M40 48l40-18" stroke="#6b4a0c" stroke-width="2.5"/>
+                <path d="M50 36l6 8M58 32l6 8M66 29l6 8" stroke="#6b4a0c" stroke-width="2.5"/>
+                <rect x="54" y="68" width="12" height="26" fill="url(#trophy-gold)"/>
+                <path d="M38 94h44l6 14H32z" fill="url(#trophy-gold)"/>
+                <rect x="26" y="108" width="68" height="10" rx="2" fill="url(#trophy-gold)"/>
+            </svg>
+            <div class="trophy-base">
+                <p class="plate-kicker">Schmacked</p>
+                <div class="plate-grid">
                     {% for season in seasons %}
                     {% set found = (titles or {}).get(season.year) %}
                     <div class="plate-row">
                         <span class="plate-year">{{ season.year }}</span>
-                        <span class="plate-leader" aria-hidden="true"></span>
                         {% if found and found.agrees and found.team_name %}
-                        <span class="plate-stack">
-                            <span class="plate-name">{{ found.team_name }}</span>
-                            <span class="plate-owner">{{ season.champion }}</span>
-                        </span>
+                        <span class="plate-name">{{ found.team_name }}</span>
+                        <span class="plate-owner">{{ season.champion }}</span>
                         {% else %}
                         <span class="plate-name">{{ season.champion }}</span>
                         {% endif %}
                     </div>
                     {% endfor %}
                 </div>
-            </section>
-        </div>
+            </div>
+            <div class="trophy-foot" aria-hidden="true"></div>
+        </section>
 
         <p class="tally-label">By person</p>
         <ul class="tally" aria-label="Championships by person">

@@ -137,15 +137,16 @@ def read_season(
 def _title(
     teams: list[Any], year: int, sheet_champion: str | None, walked: _Walked | None
 ) -> Title | None:
-    if not sheet_champion:
-        return None
     places = _place_rows(walked)
     notes = () if walked is None else tuple((place, note) for place, _club, note in walked.places)
     pairs = _pair_rows(walked)
     if walked is not None:
-        agrees = owner_matches(walked.champion.owner, sheet_champion)
+        # A season the sheet doesn't have yet is the replay's alone.
+        agrees = not sheet_champion or owner_matches(walked.champion.owner, sheet_champion)
         team_name = walked.champion.name.strip() if agrees else ""
         return Title(year, team_name, walked.champion.owner, agrees, places, notes, pairs)
+    if not sheet_champion:
+        return None
     matched = _team_for_owner(teams, sheet_champion)
     if matched is None:
         return Title(year, "", "", False)

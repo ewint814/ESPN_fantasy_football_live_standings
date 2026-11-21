@@ -156,6 +156,7 @@ def test_history() -> bool:
     try:
         from flask import Flask, render_template
 
+        from espn_history import Title
         from league_history import champion, ring_counts, season_views
 
         assert champion(2025) == "Bergel"
@@ -188,7 +189,6 @@ def test_history() -> bool:
         with app.app_context():
             page = render_template(
                 "history.html",
-                rings=ring_counts(),
                 seasons=season_views(),
             )
         assert "Schmacked History" in page
@@ -200,16 +200,11 @@ def test_history() -> bool:
         assert "2025" in rows[0] and "Bergel" in rows[0]
         assert "2011" in rows[-1] and "Eli" in rows[-1]
         assert 'class="trophy-ball"' in page
-        tally = page.split('aria-label="Championships by person"', 1)[1].split("</ul>", 1)[0]
-        assert tally.count("<li>") == 7
-        assert "Eli" in tally and ">5<" in tally
-        assert "Wechs" in tally and ">1<" in tally
-        from espn_history import Title
-
+        assert "Championships by person" not in page
+        assert "Final places from the league sheet" not in page
         with app.app_context():
             engraved = render_template(
                 "history.html",
-                rings=ring_counts(),
                 seasons=season_views(),
                 titles={2025: Title(2025, "Club Bergel", "Bergel Last", True)},
             )
@@ -224,18 +219,47 @@ def test_history() -> bool:
         assert 'id="toggleSeasons"' in page
 
         from espn_history import load_snapshot
+        from league_history import SEASONS, finishes
         from league_stats import stats_view
 
         with open(os.path.join(root, "history_snapshot.json"), encoding="utf-8") as handle:
-            _, saved = load_snapshot(handle.read())
+            saved_titles, saved = load_snapshot(handle.read())
+        # ESPN's bracket replay gives the sheet's places for 2012-2025; 2011 is the sheet's.
+        final_places = finishes(saved_titles)
+        assert final_places == SEASONS
+        new_season = Title(
+            2026,
+            "Club Newbie",
+            "Pat Newbie",
+            True,
+            tuple(
+                (place, "club", owner)
+                for place, owner in enumerate(("Pat Newbie", "Eli Winton", "jake h"), start=1)
+            ),
+        )
+        with_new = finishes({**saved_titles, 2026: new_season})
+        assert with_new[0].year == 2026
+        assert with_new[0].places == ("Pat Newbie", "Eli", "Henry")
+        assert with_new[0].joined == ("Pat Newbie",)
+        assert with_new[1:] == SEASONS
+        half = Title(2026, "", "", True, ((1, "club", "Eli Winton"), (3, "club", "jake h")))
+        assert finishes({**saved_titles, 2026: half}) == SEASONS
+
+        careers = {row.person: row for row in stats_view(saved).careers}
+        assert careers["Eli"].points_against > 0 and careers["Eli"].active
+        assert not careers["Austin"].active
         with app.app_context():
             full = render_template(
                 "history.html",
-                rings=ring_counts(),
-                seasons=season_views(),
-                stats=stats_view(saved),
-                season_count=len(saved),
+                seasons=season_views(final_places),
+                stats=stats_view(saved, final_places),
+                season_count=len(final_places),
             )
+        for heading in ("Avg finish", "Best finish", "Points for", "Points against",
+                        "Top wk score", "Low wk score"):
+            assert f">{heading}</th>" in full
+        assert 'data-who="active"' in full and 'data-who="all" aria-pressed="true"' in full
+        assert full.count('data-active="1"') == 12
         assert full.count('class="records-view"') == 12
         assert full.count('class="records-view" data-size="all" data-kind="regular">') == 1
         assert "Highest 2-week score" in full

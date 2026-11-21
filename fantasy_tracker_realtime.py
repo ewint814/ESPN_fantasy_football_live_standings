@@ -80,6 +80,9 @@ class FantasyTracker:
         
         # Timezone for display
         self.eastern = pytz.timezone('America/New_York')
+        # Render sets RENDER_GIT_COMMIT on each deploy; pages reload when it changes.
+        self.version: str = (os.getenv('RENDER_GIT_COMMIT') or '')[:7] or 'local'
+        self.started_at: datetime = datetime.now(self.eastern)
         self.visit_log = VisitLog(
             path=os.getenv('VISIT_LOG_PATH', 'visits.log'),
             timezone=self.eastern,
@@ -804,6 +807,22 @@ class FantasyTracker:
     
     def _setup_routes(self) -> None:
         """Set up Flask routes with SSE support."""
+
+        @self.app.context_processor
+        def deploy_version() -> Dict[str, str]:
+            started = self.started_at
+            return {
+                'version': self.version,
+                'live_since': (
+                    f"{started:%b} {started.day}, {started.hour % 12 or 12}:{started:%M %p} ET"
+                ),
+            }
+
+        @self.app.route('/version')
+        def version() -> Response:
+            response = jsonify({'version': self.version})
+            response.headers['Cache-Control'] = 'no-store'
+            return response
         
         @self.app.route('/')
         def dashboard() -> str:

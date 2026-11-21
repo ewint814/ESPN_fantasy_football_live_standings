@@ -1,0 +1,54 @@
+{% if version %}
+<style>
+    .version-tag {
+        text-align: center;
+        font-size: 0.72em;
+        color: #999;
+        padding: 18px 12px 24px;
+    }
+    .version-note {
+        position: fixed;
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        background: #333;
+        color: #fff;
+        font-size: 0.85em;
+        padding: 8px 14px;
+        border-radius: 6px;
+        white-space: nowrap;
+        z-index: 1000;
+    }
+</style>
+<footer class="version-tag">Version {{ version }} · live since {{ live_since }}</footer>
+<div class="version-note" id="versionNote" role="status" hidden>Updated to the latest version</div>
+<script>
+    (function () {
+        const loadedVersion = {{ version|tojson }};
+        const note = document.getElementById('versionNote');
+        if (sessionStorage.getItem('schmackedUpdated')) {
+            sessionStorage.removeItem('schmackedUpdated');
+            note.hidden = false;
+            setTimeout(() => { note.hidden = true; }, 4000);
+        }
+        // A new deploy restarts the server with a new version; reload onto it.
+        async function checkVersion() {
+            try {
+                const response = await fetch('/version', { cache: 'no-store' });
+                if (!response.ok) return;
+                const data = await response.json();
+                if (data.version && data.version !== loadedVersion) {
+                    sessionStorage.setItem('schmackedUpdated', '1');
+                    location.reload();
+                }
+            } catch (error) {
+                // Server is restarting mid-deploy; try again next round.
+            }
+        }
+        setInterval(checkVersion, 30000);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) checkVersion();
+        });
+    })();
+</script>
+{% endif %}

@@ -272,6 +272,47 @@ def test_history() -> bool:
         return False
 
 
+def test_version_tag() -> bool:
+    """Pages show the deployed version and reload when /version reports a new one."""
+    print("\n🧪 Testing the version tag...")
+    try:
+        import tempfile
+        from datetime import datetime
+
+        import pytz
+        from flask import Flask, render_template_string
+
+        from fantasy_tracker_realtime import FantasyTracker
+        from visit_log import VisitLog
+
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        eastern = pytz.timezone("America/New_York")
+        tracker = FantasyTracker.__new__(FantasyTracker)
+        tracker.app = Flask(__name__, template_folder=os.path.join(root, "templates"))
+        tracker.eastern = eastern
+        tracker.version = "a2ba9c4"
+        tracker.started_at = eastern.localize(datetime(2026, 11, 21, 5, 58))
+        tracker.visit_log = VisitLog(os.path.join(tempfile.mkdtemp(), "visits.log"), eastern)
+        tracker._setup_routes()
+
+        response = tracker.app.test_client().get("/version")
+        assert response.get_json() == {"version": "a2ba9c4"}
+        assert response.headers["Cache-Control"] == "no-store"
+        with tracker.app.test_request_context():
+            footer = render_template_string('{% include "_version.html" %}')
+        assert "Version a2ba9c4 · live since Nov 21, 5:58 AM ET" in footer
+        assert 'const loadedVersion = "a2ba9c4"' in footer
+        assert "fetch('/version'" in footer
+        # Pages rendered without the app (no version) leave the tag out.
+        with Flask(__name__, template_folder=os.path.join(root, "templates")).app_context():
+            assert render_template_string('{% include "_version.html" %}').strip() == ""
+        print("  ✅ Version tag shows, and /version answers uncached")
+        return True
+    except Exception as e:
+        print(f"  ❌ Version tag test failed: {e}")
+        return False
+
+
 def test_config():
     """Test configuration module."""
     print("\n🧪 Testing configuration...")
@@ -341,6 +382,7 @@ def main():
     results.append(("Config", test_config()))
     results.append(("Cut line", test_cut_line()))
     results.append(("History", test_history()))
+    results.append(("Version tag", test_version_tag()))
 
     # Print summary
     print("\n" + "=" * 60)

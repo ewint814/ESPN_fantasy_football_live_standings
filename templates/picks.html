@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Schmacked">
+    <meta name="theme-color" content="#333333">
+    <title>Schmacked Picks</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            color: #333;
+            line-height: 1.5;
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1px solid #ddd;
+            padding: 24px 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .page-link {
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 24px 20px 40px;
+        }
+
+        .note {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 14px;
+        }
+
+        .block {
+            margin: 0 0 26px;
+        }
+
+        h2 {
+            font-size: 1.05em;
+            margin: 4px 0 10px;
+        }
+
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06);
+        }
+
+        .clock {
+            padding: 12px 14px;
+            margin-bottom: 10px;
+        }
+
+        .clock-label {
+            font-size: 0.72em;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 600;
+        }
+
+        .clock-name {
+            font-size: 1.2em;
+            font-weight: 700;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .table th,
+        .table td {
+            padding: 8px 8px;
+            border-bottom: 1px solid #eee;
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        .table th {
+            font-size: 0.78em;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 600;
+        }
+
+        .table th.left,
+        .table td.left {
+            text-align: left;
+        }
+
+        .table td.name {
+            font-weight: 600;
+        }
+
+        .table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .table tr.best td {
+            background: #f1f8f1;
+        }
+
+        .sub {
+            display: block;
+            color: #777;
+            font-size: 0.82em;
+            font-weight: 400;
+        }
+
+        .pick-btn {
+            display: inline-block;
+            padding: 5px 12px;
+            border: 1px solid #333;
+            border-radius: 16px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.9em;
+            text-decoration: none;
+        }
+
+        .pick-btn:hover {
+            background: #333;
+            color: white;
+        }
+
+        .order {
+            list-style: none;
+        }
+
+        .order li {
+            display: flex;
+            align-items: baseline;
+            gap: 10px;
+            padding: 8px 14px;
+            border-bottom: 1px solid #eee;
+            font-size: 0.92em;
+        }
+
+        .order li:last-child {
+            border-bottom: none;
+        }
+
+        .order .slot {
+            width: 22px;
+            color: #888;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .order .who {
+            font-weight: 600;
+            min-width: 70px;
+        }
+
+        .order .what {
+            flex: 1;
+            color: #333;
+        }
+
+        .order li.now {
+            background: #fff8e1;
+        }
+
+        .order li.guess .what {
+            color: #999;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 16px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .actions a {
+            color: #333;
+            font-weight: 600;
+        }
+
+        details.more summary {
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9em;
+            padding: 6px 0;
+        }
+
+        details.more ul {
+            padding-left: 18px;
+        }
+
+        @media (max-width: 768px) {
+            .header { padding: 16px 12px; }
+            .header h1 { font-size: 1.35em; }
+            .container { padding: 12px 12px 28px; }
+            .table th, .table td { padding: 8px 5px; }
+        }
+    </style>
+</head>
+<body>
+    {% macro pct(value) %}{% if value >= 0.995 and value < 1 %}&gt;99{% elif value > 0 and value < 0.005 %}&lt;1{% else %}{{ "%.0f"|format(value * 100) }}{% endif %}%{% endmacro %}
+    {% macro record(team) %}{{ team.wins }}-{{ team.losses }}{% if team.ties %}-{{ team.ties }}{% endif %}{% endmacro %}
+    <div class="header">
+        <h1>Schmacked Picks</h1>
+        <a class="page-link" href="/">Standings</a> · <a class="page-link" href="/history">History</a> · <a class="page-link" href="/moves">Moves</a>
+    </div>
+
+    <div class="container">
+        {% if not board %}
+        <p class="note">{{ message }}</p>
+        {% else %}
+
+        <p class="note">
+            {% if board.week == 12 %}Week 12: first place picks first, then down the standings.
+            {% elif board.week == 13 %}Week 13: last place picks first, then up the standings.
+            {% else %}Week 14: middle out, 6th, 7th, 5th, 8th, and so on.{% endif %}
+            Anyone already taken is skipped.
+        </p>
+
+        {% if board.locked %}
+        <p class="note"><strong>Week {{ board.week }} has started</strong>, so these are ESPN's matchups and odds as the games go.</p>
+        {% elif board.on_clock %}
+        {% set clock = teams[board.on_clock] %}
+        <section class="block" aria-label="On the clock">
+            <div class="card clock">
+                <div class="clock-label">On the clock · week {{ board.week }}</div>
+                <div class="clock-name">{{ clock.person }}</div>
+                <div class="sub">{{ clock.name }} · {{ record(clock) }} · {{ "{:,.1f}".format(clock.points_for) }} pts</div>
+            </div>
+            <div class="card">
+                <table class="table" id="options">
+                    <thead>
+                        <tr>
+                            <th class="left">Pick</th>
+                            <th title="Chance of winning the game this week">Win</th>
+                            <th title="Chance of a 1 or 2 seed">Bye</th>
+                            <th title="Chance of any playoff seed">Playoffs</th>
+                            <th title="Average seed when making the playoffs">Seed</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for option in board.options %}
+                        {% set foe = teams[option.opponent] %}
+                        <tr{% if loop.first %} class="best"{% endif %}>
+                            <td class="left name">{{ foe.person }}<span class="sub">{{ record(foe) }}</span></td>
+                            <td>{{ pct(option.win) }}</td>
+                            <td>{{ pct(option.odds.bye) }}</td>
+                            <td><strong>{{ pct(option.odds.playoffs) }}</strong></td>
+                            <td>{{ "%.1f"|format(option.odds.average_seed) if option.odds.average_seed else "—" }}</td>
+                            <td><a class="pick-btn" href="/picks?made={{ made_text(board.made + ((board.on_clock, option.opponent),)) }}">Pick</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p class="note" style="margin-top:6px">Best playoff odds first, then bye odds. Tapping Pick only plays it out here; the commissioner still enters the real picks in ESPN.</p>
+        </section>
+        {% endif %}
+
+        <section class="block" aria-label="Pick order">
+            <h2>Week {{ board.week }} pick order</h2>
+            <div class="card">
+                <ol class="order">
+                    {% set made_by = {} %}
+                    {% for picker, opponent in board.made %}{% set _ = made_by.update({picker: opponent}) %}{% endfor %}
+                    {% set assumed_by = {} %}
+                    {% for picker, opponent in board.assumed %}{% set _ = assumed_by.update({picker: opponent}) %}{% endfor %}
+                    {% set taken = {} %}
+                    {% for picker, opponent in board.assumed %}{% set _ = taken.update({opponent: picker}) %}{% endfor %}
+                    {% for team_id in board.order %}
+                    {% set team = teams[team_id] %}
+                    {% if team_id in made_by %}
+                    <li><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">picked {{ teams[made_by[team_id]].person }}</span></li>
+                    {% elif team_id == board.on_clock %}
+                    <li class="now"><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">on the clock</span></li>
+                    {% elif team_id in assumed_by %}
+                    <li class="guess"><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">likely {{ teams[assumed_by[team_id]].person }}</span></li>
+                    {% else %}
+                    <li class="guess"><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">taken by {{ teams[taken[team_id]].person }}</span></li>
+                    {% endif %}
+                    {% endfor %}
+                </ol>
+            </div>
+            {% if not board.locked %}
+            <div class="actions">
+                {% if board.made %}<a href="/picks?made={{ made_text(board.made[:-1]) }}">Undo last pick</a>
+                <a href="/picks">Start over</a>{% endif %}
+                <a href="/picks?use=espn" title="ESPN shows its default schedule until the commissioner enters the picks">Use ESPN's week {{ board.week }} schedule</a>
+            </div>
+            <p class="note" style="margin-top:6px">Gray rows are a guess: everyone not picked yet takes the weakest team left. ESPN shows its default schedule until the commissioner enters the picks.</p>
+            {% endif %}
+        </section>
+
+        <section class="block" aria-label="Playoff odds">
+            <h2>Playoff odds{% if board.made and not board.locked %} with these picks{% endif %}</h2>
+            <div class="card">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="left">#</th>
+                            <th class="left">Person</th>
+                            <th title="Chance of a 1 or 2 seed">Bye</th>
+                            <th title="Chance of seeds 1-5, by record">Top 5</th>
+                            <th title="Chance of the 6 seed, most points among the rest">Pts spot</th>
+                            <th title="Chance of any playoff seed">Playoffs</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for team_id in standings %}
+                        {% set team = teams[team_id] %}
+                        {% set odds = board.league[team_id] %}
+                        <tr>
+                            <td class="left">{{ loop.index }}</td>
+                            <td class="left name">{{ team.person }}<span class="sub">{{ record(team) }} · {{ "{:,.0f}".format(team.points_for) }} pts</span></td>
+                            <td>{{ pct(odds.bye) }}</td>
+                            <td>{{ pct(odds.top_five) }}</td>
+                            <td>{{ pct(odds.points_spot) }}</td>
+                            <td><strong>{{ pct(odds.playoffs) }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <details class="more">
+            <summary>How the odds work</summary>
+            <ul class="note">
+                <li>The rest of the regular season is played out {{ "{:,}".format(runs) }} times, through week 14.</li>
+                <li>Each week a team's score is drawn around what it has averaged this season, pulled a little toward the league average. For the week about to be played, ESPN's projection counts for half.</li>
+                <li>Every week has the head-to-head game and the median game: the top half of scores get a win.</li>
+                <li>Seeds 1-5 by record, points for breaking ties. Seed 6 is the most points among everyone else. Seeds 1-2 get byes.</li>
+                <li>Teams that pick later, this week and in later weeks, are assumed to take the weakest team left.</li>
+                <li>Odds are rounded and can move by about a point between refreshes.</li>
+            </ul>
+        </details>
+        {% endif %}
+    </div>
+    {% include "_version.html" %}
+</body>
+</html>

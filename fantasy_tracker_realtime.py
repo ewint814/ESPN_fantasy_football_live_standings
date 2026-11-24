@@ -10,7 +10,7 @@ import logging
 import requests
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Generator
-from flask import Flask, render_template, jsonify, Response, stream_with_context
+from flask import Flask, render_template, jsonify, request, Response, stream_with_context
 from visit_log import VisitLog, register_visit_routes
 import threading
 import time
@@ -25,6 +25,17 @@ from espn_history import _person, dump_snapshot, load_season, load_snapshot
 from league_history import SEASONS, active_people, finishes, season_views
 from league_moves import dump_moves, load_moves, load_moves_snapshot, moves_view
 from league_stats import stats_view
+from pick_odds import (
+    SIMULATIONS,
+    PickBoard,
+    PickState,
+    made_from_pairs,
+    made_text,
+    parse_made,
+    pick_board,
+    pick_order,
+    state_from_league,
+)
 from nfl_utils import NFLSeasonHelper
 from constants import (
     UPDATE_INTERVAL_ACTIVE_GAMES,
@@ -38,6 +49,7 @@ from constants import (
     NON_STARTER_SLOTS,
     PLAYOFF_CUTOFF,
     MOVES_REFRESH_SECONDS,
+    PICKS_REFRESH_SECONDS,
 )
 
 # Finished seasons, saved from /history/data.json so they load without ESPN.
@@ -77,6 +89,10 @@ class FantasyTracker:
         self.moves_loading: bool = True
         self.games_today_cache: Optional[bool] = None
         self.games_check_date: Optional[datetime] = None
+        self.pick_state: Optional[PickState] = None
+        self.pick_state_at: float = 0.0
+        self.pick_boards: Dict[str, PickBoard] = {}
+        self.pick_lock = threading.Lock()
         
         # Timezone for display
         self.eastern = pytz.timezone('America/New_York')
@@ -864,6 +880,33 @@ class FantasyTracker:
             }
             return Response(dump_moves(finished), mimetype='application/json')
 
+        @self.app.route('/picks')
+        def picks() -> str:
+            state = self._pick_state()
+            if state is None:
+                return render_template(
+                    'picks.html',
+                    board=None,
+                    message=(
+                        "Picks are for weeks 12-14. Nothing to pick this week."
+                        if self.league is not None
+                        else "ESPN isn't answering right now. Try again in a minute."
+                    ),
+                )
+            order = pick_order(state.week, state.standings)
+            if request.args.get('use') == 'espn':
+                made = made_from_pairs(order, state.espn_pairs)
+            else:
+                made = parse_made(request.args.get('made', ''))
+            return render_template(
+                'picks.html',
+                board=self._pick_board(state, made),
+                teams={team.team_id: team for team in state.teams},
+                standings=state.standings,
+                made_text=made_text,
+                runs=SIMULATIONS,
+            )
+
         @self.app.route('/manifest.webmanifest')
         def manifest() -> Response:
             payload = {
@@ -920,6 +963,40 @@ class FantasyTracker:
                 'current_week': self.current_week,
                 'real_time': True
             }), status_code
+
+    def _pick_state(self) -> Optional[PickState]:
+        """The pick week from ESPN, fetched at most every PICKS_REFRESH_SECONDS."""
+        with self.pick_lock:
+            if self.pick_state_at and time.time() - self.pick_state_at < PICKS_REFRESH_SECONDS:
+                return self.pick_state
+            try:
+                league = League(
+                    league_id=int(self.config.espn_league_id),
+                    year=self.nfl_year,
+                    espn_s2=self.config.espn_s2,
+                    swid=self.config.espn_swid,
+                )
+                state = state_from_league(league, _person)
+            except Exception as exc:
+                logger.warning("Pick week failed: %s", exc)
+                return self.pick_state
+            if state != self.pick_state:
+                self.pick_boards = {}
+            self.pick_state, self.pick_state_at = state, time.time()
+            return state
+
+    def _pick_board(self, state: PickState, made: Any) -> PickBoard:
+        key = made_text(made)
+        with self.pick_lock:
+            board = self.pick_boards.get(key)
+        if board is None or self.pick_state is not state:
+            board = pick_board(state, made)
+            with self.pick_lock:
+                if len(self.pick_boards) > 200:
+                    self.pick_boards = {}
+                if self.pick_state is state:
+                    self.pick_boards[key] = board
+        return board
 
     def _active_owners(self, final_places: Any) -> frozenset[str]:
         """People in this season's league, or the newest finished season's if ESPN is down."""

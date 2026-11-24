@@ -19,6 +19,8 @@ RETRY_MAX_DELAY = 60   # seconds
 
 # How often the moves page re-reads this season's pickups, trades, and lineups
 MOVES_REFRESH_SECONDS = 3600
+# How long the Picks page reuses ESPN's standings and projections.
+PICKS_REFRESH_SECONDS = 120
 
 # NFL Season configuration
 PLAYOFF_CUTOFF = 6  # Top 6 teams make playoffs

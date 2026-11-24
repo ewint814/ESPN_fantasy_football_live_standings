@@ -215,6 +215,78 @@
             padding-left: 18px;
         }
 
+        .controls {
+            display: grid;
+            gap: 4px;
+            margin-bottom: 14px;
+        }
+
+        .control-label {
+            display: block;
+            font-size: 0.72em;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #888;
+            font-weight: 600;
+        }
+
+        .chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 2px 0 8px;
+        }
+
+        .chip {
+            display: inline-block;
+            font-size: 0.85em;
+            font-weight: 600;
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-radius: 18px;
+            background: white;
+            color: #333;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .chip[aria-current="true"] {
+            background: #333;
+            border-color: #333;
+            color: white;
+        }
+
+        .table .goal-col {
+            background: #fafafa;
+        }
+
+        #compare th {
+            white-space: normal;
+            vertical-align: bottom;
+        }
+
+        .table td.picked-col {
+            font-weight: 700;
+        }
+
+        .working {
+            position: fixed;
+            left: 50%;
+            bottom: 20px;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9em;
+            z-index: 200;
+        }
+
+        .working[hidden] {
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .header { padding: 16px 12px; }
             .header h1 { font-size: 1.35em; }
@@ -243,6 +315,34 @@
             Anyone already taken is skipped.
         </p>
 
+        <div class="controls" aria-label="Settings">
+            <div class="control">
+                <span class="control-label">Going for</span>
+                <div class="chips">
+                    {% for key, label in goals.items() %}
+                    <a class="chip" href="{{ link(goal=key) }}"{% if board.settings.goal == key %} aria-current="true"{% endif %}>{{ label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="control">
+                <span class="control-label">Scores from</span>
+                <div class="chips">
+                    {% for key, label in sources.items() %}
+                    <a class="chip" href="{{ link(src=key) }}"{% if board.settings.source == key %} aria-current="true"{% endif %}>{{ label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="control">
+                <span class="control-label">Others pick</span>
+                <div class="chips">
+                    {% for key, label in pickers.items() %}
+                    <a class="chip" href="{{ link(others=key) }}"{% if board.settings.picker == key %} aria-current="true"{% endif %}>{{ label }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {% set goal_label = goals[board.settings.goal] %}
         {% if board.locked %}
         <p class="note"><strong>Week {{ board.week }} has started</strong>, so these are ESPN's matchups and odds as the games go.</p>
         {% elif board.on_clock %}
@@ -253,15 +353,42 @@
                 <div class="clock-name">{{ clock.person }}</div>
                 <div class="sub">{{ clock.name }} · {{ record(clock) }} · {{ "{:,.1f}".format(clock.points_for) }} pts</div>
             </div>
+            <div class="chips">
+                <a class="chip" href="{{ link(view='') }}"{% if not board.compare %} aria-current="true"{% endif %}>Odds</a>
+                <a class="chip" href="{{ link(view='compare') }}"{% if board.compare %} aria-current="true"{% endif %}>Compare score sources</a>
+            </div>
             <div class="card">
+                {% if board.compare %}
+                <table class="table" id="compare">
+                    <thead>
+                        <tr>
+                            <th class="left">Pick</th>
+                            {% for key, label in sources.items() %}<th>{{ label }}</th>{% endfor %}
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for option in board.options %}
+                        {% set foe = teams[option.opponent] %}
+                        <tr>
+                            <td class="left name">{{ foe.person }}<span class="sub">{{ record(foe) }}</span></td>
+                            {% for key in sources %}
+                            <td{% if key == board.settings.source %} class="picked-col"{% endif %}>{{ pct(board.compare[option.opponent][key]) }}</td>
+                            {% endfor %}
+                            <td><a class="pick-btn" href="{{ link(made=made_text(board.made + ((board.on_clock, option.opponent),))) }}">Pick</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
                 <table class="table" id="options">
                     <thead>
                         <tr>
                             <th class="left">Pick</th>
                             <th title="Chance of winning the game this week">Win</th>
-                            <th title="Chance of a 1 or 2 seed">Bye</th>
-                            <th title="Chance of any playoff seed">Playoffs</th>
-                            <th title="Average seed when making the playoffs">Seed</th>
+                            <th class="goal-col">{{ goal_label }}</th>
+                            {% if board.settings.goal != "playoffs" %}<th title="Chance of any playoff seed">Playoffs</th>{% endif %}
+                            <th title="Teams left with at least a 1% playoff chance">Alive</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -271,16 +398,39 @@
                         <tr{% if loop.first %} class="best"{% endif %}>
                             <td class="left name">{{ foe.person }}<span class="sub">{{ record(foe) }}</span></td>
                             <td>{{ pct(option.win) }}</td>
-                            <td>{{ pct(option.odds.bye) }}</td>
-                            <td><strong>{{ pct(option.odds.playoffs) }}</strong></td>
-                            <td>{{ "%.1f"|format(option.odds.average_seed) if option.odds.average_seed else "—" }}</td>
-                            <td><a class="pick-btn" href="/picks?made={{ made_text(board.made + ((board.on_clock, option.opponent),)) }}">Pick</a></td>
+                            <td class="goal-col"><strong>{{ pct(option.odds.goal(board.settings.goal)) }}</strong></td>
+                            {% if board.settings.goal != "playoffs" %}<td>{{ pct(option.odds.playoffs) }}</td>{% endif %}
+                            <td>{{ option.alive }}</td>
+                            <td><a class="pick-btn" href="{{ link(made=made_text(board.made + ((board.on_clock, option.opponent),))) }}">Pick</a></td>
                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
+                {% endif %}
             </div>
-            <p class="note" style="margin-top:6px">Best playoff odds first, then bye odds. Tapping Pick only plays it out here; the commissioner still enters the real picks in ESPN.</p>
+            <p class="note" style="margin-top:6px">
+                {% if board.compare %}{{ clock.person }}'s {{ goal_label }} odds for each pick under every score source, with others picking "{{ pickers[board.settings.picker] }}".
+                {% else %}Best {{ goal_label }} odds first. Alive is how many teams keep a playoff chance after that pick.{% endif %}
+                Tapping Pick only plays it out here; the commissioner still enters the real picks in ESPN.
+            </p>
+        </section>
+
+        <section class="block" aria-label="Most chaos">
+            <h2>Most chaos</h2>
+            {% if board.chaos %}
+            <div class="card">
+                <ol class="order">
+                    {% for picker, opponent in board.chaos.picks %}
+                    <li><span class="who">{{ teams[picker].person }}</span><span class="what">picks {{ teams[opponent].person }}</span></li>
+                    {% endfor %}
+                </ol>
+            </div>
+            <p class="note" style="margin-top:6px"><strong>{{ board.chaos.alive }} of {{ teams|length }} teams</strong> keep a playoff chance this way, against {{ board.alive }} with the picks as guessed below.</p>
+            <div class="actions"><a href="{{ link(made=made_text(board.made + board.chaos.picks), chaos='') }}">Play these picks</a></div>
+            {% else %}
+            <p class="note">The rest of this week's picks that leave the most teams with a playoff chance (at least 1%), then the most toss-ups.</p>
+            <div class="actions"><a href="{{ link(chaos='1') }}">Find the most chaotic picks</a></div>
+            {% endif %}
         </section>
         {% endif %}
 
@@ -301,7 +451,7 @@
                     {% elif team_id == board.on_clock %}
                     <li class="now"><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">on the clock</span></li>
                     {% elif team_id in assumed_by %}
-                    <li class="guess"><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">likely {{ teams[assumed_by[team_id]].person }}</span></li>
+                    <li class="guess"><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">{% if board.settings.picker == "random" %}maybe{% else %}likely{% endif %} {{ teams[assumed_by[team_id]].person }}</span></li>
                     {% else %}
                     <li class="guess"><span class="slot">{{ loop.index }}</span><span class="who">{{ team.person }}</span><span class="what">taken by {{ teams[taken[team_id]].person }}</span></li>
                     {% endif %}
@@ -310,11 +460,17 @@
             </div>
             {% if not board.locked %}
             <div class="actions">
-                {% if board.made %}<a href="/picks?made={{ made_text(board.made[:-1]) }}">Undo last pick</a>
-                <a href="/picks">Start over</a>{% endif %}
-                <a href="/picks?use=espn" title="ESPN shows its default schedule until the commissioner enters the picks">Use ESPN's week {{ board.week }} schedule</a>
+                {% if board.made %}<a href="{{ link(made=made_text(board.made[:-1]), chaos='') }}">Undo last pick</a>
+                <a href="{{ link(made='', chaos='') }}">Start over</a>{% endif %}
+                <a href="{{ link(made='', chaos='', use='espn') }}" title="ESPN shows its default schedule until the commissioner enters the picks">Use ESPN's week {{ board.week }} schedule</a>
             </div>
-            <p class="note" style="margin-top:6px">Gray rows are a guess: everyone not picked yet takes the weakest team left. ESPN shows its default schedule until the commissioner enters the picks.</p>
+            <p class="note" style="margin-top:6px">
+                Gray rows are a guess:
+                {% if board.settings.picker == "smart" %}each team left takes whoever gives it the best playoff odds.
+                {% elif board.settings.picker == "random" %}the odds have everyone left picking at random; the names shown are one example.
+                {% else %}everyone not picked yet takes the weakest team left.{% endif %}
+                ESPN shows its default schedule until the commissioner enters the picks.
+            </p>
             {% endif %}
         </section>
 
@@ -328,7 +484,7 @@
                             <th class="left">Person</th>
                             <th title="Chance of a 1 or 2 seed">Bye</th>
                             <th title="Chance of seeds 1-5, by record">Top 5</th>
-                            <th title="Chance of the 6 seed, most points among the rest">Pts spot</th>
+                            <th title="Chance of the 6 seed, most points among the rest">6th</th>
                             <th title="Chance of any playoff seed">Playoffs</th>
                         </tr>
                     </thead>
@@ -348,21 +504,31 @@
                     </tbody>
                 </table>
             </div>
+            <p class="note" style="margin-top:6px">{{ board.alive }} of {{ teams|length }} teams have at least a 1% playoff chance.</p>
         </section>
 
         <details class="more">
             <summary>How the odds work</summary>
             <ul class="note">
                 <li>The rest of the regular season is played out {{ "{:,}".format(runs) }} times, through week 14.</li>
-                <li>Each week a team's score is drawn around what it has averaged this season, pulled a little toward the league average. For the week about to be played, ESPN's projection counts for half.</li>
+                <li>Scores from: <strong>ESPN projections</strong> uses each roster's best lineup from ESPN's rest-of-season player projections, skipping byes and players on IR (and anyone out this week); this week uses ESPN's own projection. <strong>Season average</strong> and <strong>Last 4 weeks</strong> are pulled a little toward the league average, and ESPN's projection counts for half of this week. <strong>Blend</strong> is half season average, half ESPN.</li>
+                <li>Each week's score varies around that by how much scores have swung this season.</li>
                 <li>Every week has the head-to-head game and the median game: the top half of scores get a win.</li>
-                <li>Seeds 1-5 by record, points for breaking ties. Seed 6 is the most points among everyone else. Seeds 1-2 get byes.</li>
-                <li>Teams that pick later, this week and in later weeks, are assumed to take the weakest team left.</li>
+                <li>Seeds 1-5 by record, points for breaking ties. Seed 6 (6th) is the most points among everyone else. Seeds 1-2 get byes.</li>
+                <li>Others pick: <strong>Weakest left</strong> takes the lowest expected score left. <strong>Smart</strong> takes whoever gives that team the best playoff odds, this week; later weeks use weakest left. <strong>Random</strong> takes anyone left, every week.</li>
+                <li>Most chaos tries each pick in turn and keeps the one that leaves the most teams with at least a 1% playoff chance, then the most toss-ups.</li>
                 <li>Odds are rounded and can move by about a point between refreshes.</li>
             </ul>
         </details>
         {% endif %}
     </div>
+    <div class="working" id="working" hidden>Running the numbers…</div>
+    <script>
+        document.querySelectorAll('.container a[href^="/picks"]').forEach((a) => {
+            a.addEventListener("click", () => { document.getElementById("working").hidden = false; });
+        });
+        window.addEventListener("pageshow", () => { document.getElementById("working").hidden = true; });
+    </script>
     {% include "_version.html" %}
 </body>
 </html>

@@ -8,6 +8,7 @@ Uses SSE (Server-Sent Events) for push-based real-time updates.
 import os
 import logging
 import requests
+from urllib.parse import urlencode
 from datetime import datetime
 from typing import Dict, List, Optional, Any, Generator
 from flask import Flask, render_template, jsonify, request, Response, stream_with_context
@@ -26,9 +27,13 @@ from league_history import SEASONS, active_people, finishes, season_views
 from league_moves import dump_moves, load_moves, load_moves_snapshot, moves_view
 from league_stats import stats_view
 from pick_odds import (
+    GOALS,
+    PICKERS,
     SIMULATIONS,
+    SOURCES,
     PickBoard,
     PickState,
+    Settings,
     made_from_pairs,
     made_text,
     parse_made,
@@ -898,12 +903,37 @@ class FantasyTracker:
                 made = made_from_pairs(order, state.espn_pairs)
             else:
                 made = parse_made(request.args.get('made', ''))
+            settings = Settings.read(
+                request.args.get('src', ''),
+                request.args.get('others', ''),
+                request.args.get('goal', ''),
+            )
+            chaos = request.args.get('chaos') == '1'
+            compare = request.args.get('view') == 'compare'
+            board = self._pick_board(state, made, settings, chaos, compare)
+            current = {
+                'made': made_text(board.made),
+                'src': settings.source,
+                'others': settings.picker,
+                'goal': settings.goal,
+                'chaos': '1' if chaos else '',
+                'view': 'compare' if compare else '',
+            }
+
+            def link(**changes: str) -> str:
+                query = {key: value for key, value in {**current, **changes}.items() if value}
+                return '/picks?' + urlencode(query) if query else '/picks'
+
             return render_template(
                 'picks.html',
-                board=self._pick_board(state, made),
+                board=board,
                 teams={team.team_id: team for team in state.teams},
                 standings=state.standings,
                 made_text=made_text,
+                link=link,
+                sources=SOURCES,
+                pickers=PICKERS,
+                goals=GOALS,
                 runs=SIMULATIONS,
             )
 
@@ -985,12 +1015,14 @@ class FantasyTracker:
             self.pick_state, self.pick_state_at = state, time.time()
             return state
 
-    def _pick_board(self, state: PickState, made: Any) -> PickBoard:
-        key = made_text(made)
+    def _pick_board(
+        self, state: PickState, made: Any, settings: Settings, chaos: bool, compare: bool
+    ) -> PickBoard:
+        key = f"{made_text(made)}|{settings}|{chaos}|{compare}"
         with self.pick_lock:
             board = self.pick_boards.get(key)
         if board is None or self.pick_state is not state:
-            board = pick_board(state, made)
+            board = pick_board(state, made, settings, chaos=chaos, compare=compare)
             with self.pick_lock:
                 if len(self.pick_boards) > 200:
                     self.pick_boards = {}

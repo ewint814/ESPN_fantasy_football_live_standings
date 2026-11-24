@@ -5,11 +5,17 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from types import SimpleNamespace
+
 from pick_odds import (
+    SOURCES,
     PickState,
     PickTeam,
-    _fill_picks,
+    Settings,
+    _fill_weakest,
     _play,
+    curves,
+    lineup_projection,
     made_from_pairs,
     made_text,
     on_the_clock,
@@ -56,7 +62,7 @@ def test_taken_teams_are_skipped() -> None:
     assert valid_made(STANDINGS, ((1, 2), (3, 2))) == ((1, 2),)
     assert valid_made(STANDINGS, ((4, 1),)) == ()
     strength = {team: 200.0 - team for team in STANDINGS}
-    filled = _fill_picks(STANDINGS, made, strength)
+    filled = _fill_weakest(STANDINGS, made, strength)
     assert filled[:2] == ((1, 2), (3, 12))
     assert len(filled) == 6
     assert sorted(team for pair in filled for team in pair) == list(STANDINGS)
@@ -120,6 +126,60 @@ def test_started_week_uses_espn_matchups() -> None:
     assert len(board.made) == 6
 
 
+def test_settings_and_sources() -> None:
+    assert Settings.read("bogus", "smart", "bye") == Settings("espn", "smart", "bye")
+    state = league()
+    rest = {week: {team: 100.0 for team in STANDINGS} for week in (12, 13, 14)}
+    with_espn = PickState(12, state.teams, STANDINGS, {1: 150.0}, rest=rest)
+    shapes = {source: curves(with_espn, source) for source in SOURCES}
+    # ESPN projections: this week is ESPN's own projection, later weeks the lineup projection.
+    assert shapes["espn"].means[12][1] == 150.0
+    assert shapes["espn"].means[13][1] == 100.0
+    season = shapes["season"].means[13][1]
+    assert season > 120
+    assert shapes["season"].means[12][1] == (season + 150.0) / 2
+    assert shapes["blend"].means[13][1] == (season + 100.0) / 2
+    assert abs(shapes["recent"].means[13][2] - shapes["season"].means[13][2]) < 5
+
+
+def test_lineup_projection_skips_byes_and_injuries() -> None:
+    def player(points: float, slots: list[str], status: str = "ACTIVE", bye: int = 0) -> object:
+        schedule = {str(week): {} for week in range(1, 19) if week != bye}
+        return SimpleNamespace(
+            projected_avg_points=points, eligibleSlots=slots, injuryStatus=status, schedule=schedule
+        )
+
+    players = [
+        player(20, ["QB"]),
+        player(30, ["QB"], bye=13),
+        player(15, ["RB", "RB/WR/TE"]),
+        player(14, ["RB", "RB/WR/TE"], status="INJURY_RESERVE"),
+        player(12, ["RB", "RB/WR/TE"]),
+        player(10, ["RB", "RB/WR/TE"], status="OUT"),
+    ]
+    slots = {"QB": 1, "RB": 2, "RB/WR/TE": 1, "BE": 6, "IR": 1}
+    # Week 13: the 30-point QB is on bye; IR is out; OUT counts after this week.
+    assert lineup_projection(players, slots, 13, this_week=False) == 20 + 15 + 12 + 10
+    assert lineup_projection(players, slots, 13, this_week=True) == 20 + 15 + 12
+    assert lineup_projection(players, slots, 12, this_week=False) == 30 + 15 + 12 + 10
+
+
+def test_every_picker_chaos_and_compare() -> None:
+    state = league()
+    for picker in ("weakest", "random", "smart"):
+        board = pick_board(state, ((1, 12),), Settings(picker=picker), runs=60)
+        assert board.on_clock == 2 and len(board.options) == 9
+        assert abs(sum(odds.playoffs for odds in board.league.values()) - 6) < 1e-9
+    board = pick_board(state, settings=Settings(goal="bye"), runs=80, chaos=True, compare=True)
+    goals = [round(option.odds.bye * 100) for option in board.options]
+    assert goals == sorted(goals, reverse=True)
+    assert board.chaos is not None and len(board.chaos.picks) == 6
+    assert board.chaos.picks[0][0] == 1
+    assert board.chaos.alive >= 1
+    assert board.compare is not None
+    assert set(board.compare[board.options[0].opponent]) == set(SOURCES)
+
+
 def main() -> None:
     test_pick_orders()
     test_taken_teams_are_skipped()
@@ -127,6 +187,9 @@ def main() -> None:
     test_median_game_and_seeds()
     test_board_odds()
     test_started_week_uses_espn_matchups()
+    test_settings_and_sources()
+    test_lineup_projection_skips_byes_and_injuries()
+    test_every_picker_chaos_and_compare()
     print("picks ok")
 
 
